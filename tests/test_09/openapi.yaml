@@ -1,0 +1,33 @@
+#
+# filename: openapi.yaml
+# created_by: tester
+# created_at: 2026-06-16
+# status: approved
+#
+# description を欠落させ、フロントマターチェックのみを失敗させるケース。
+# redocly / operations は成功する。
+
+openapi: 3.0.3
+info:
+  title: Missing Frontmatter Field API
+  version: 1.0.0
+servers:
+  - url: https://api.example.org
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      x-internal: false
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

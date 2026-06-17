@@ -1,0 +1,42 @@
+#
+# filename: openapi.yaml
+# description: backendのIF仕様書
+# created_by: tester
+# created_at: 2026-06-16
+# status: approved
+#
+
+openapi: 3.0.3
+# 同一パスに複数メソッドがあり、post のみ x-internal を欠落させるケース。
+# 先頭(get)以外のメソッドも走査されることを確認する → operations チェックが失敗。
+info:
+  title: Multi Method API
+  version: 1.0.0
+servers:
+  - url: https://api.example.org
+security:
+  - bearerAuth: []
+paths:
+  /user:
+    get:
+      summary: Get user
+      operationId: getUser
+      x-internal: false
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+    post:
+      summary: Create user
+      operationId: createUser
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Bad Request
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

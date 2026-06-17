@@ -1,0 +1,26 @@
+openapi: 3.0.3
+# 先頭にフロントマター(コメントブロック)が無いため、フロントマターチェックのみを失敗させるケース。
+# redocly / operations は成功する。
+info:
+  title: No Frontmatter API
+  version: 1.0.0
+servers:
+  - url: https://api.example.org
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      x-internal: false
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

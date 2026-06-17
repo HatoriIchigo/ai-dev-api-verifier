@@ -1,0 +1,42 @@
+#
+# filename: openapi.yaml
+# description: backendのIF仕様書
+# created_by: tester
+# created_at: 2026-06-16
+# status: approved
+#
+
+openapi: 3.0.3
+# スカラープロパティ(name)に example が無いため、
+# redocly(scalar-property-missing-example) のみを失敗させるケース。
+# operations / frontmatter は成功する。
+info:
+  title: Missing Example API
+  version: 1.0.0
+servers:
+  - url: https://api.example.org
+security:
+  - bearerAuth: []
+paths:
+  /user:
+    get:
+      summary: Get user
+      operationId: getUser
+      x-internal: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+        '400':
+          description: Bad Request
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

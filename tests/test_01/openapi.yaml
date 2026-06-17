@@ -1,0 +1,72 @@
+#
+# filename: openapi.yaml
+# description: backendのIF仕様書
+# created_by: tester
+# created_at: 2026-06-16
+# status: approved
+#
+
+openapi: 3.0.3
+info:
+  title: Sample API
+  version: 1.0.0
+  description: A valid OpenAPI document used for the success test case.
+servers:
+  - url: https://api.example.org
+security:
+  - bearerAuth: []
+paths:
+  /ping:
+    get:
+      summary: Health check
+      operationId: ping
+      x-internal: false
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+  /user:
+    get:
+      summary: Get user
+      operationId: getUser
+      x-internal: false
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  name:
+                    type: string
+                    example: alice
+        '400':
+          description: Bad Request
+    post:
+      summary: Create user
+      operationId: createUser
+      x-internal: true # 外部接続: DB/Cognito
+      responses:
+        '201':
+          description: Created
+        '400':
+          description: Bad Request
+    delete:
+      summary: Delete user
+      operationId: deleteUser
+      x-internal: true # 外部接続: DB
+      responses:
+        '204':
+          description: No Content
+        '400':
+          description: Bad Request
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

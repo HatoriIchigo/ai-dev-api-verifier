@@ -1,0 +1,33 @@
+#
+# filename: openapi.yaml
+# description: backendのIF仕様書
+# created_by: tester
+# created_at: 2026-06-16
+# status: approved
+#
+
+openapi: 3.0.3
+# operationId を欠落させ、redocly(operation-operationId) のみを失敗させるケース。
+# x-internal は有効なので operations チェックは成功する。
+info:
+  title: Missing OperationId API
+  version: 1.0.0
+servers:
+  - url: https://api.example.org
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Health check
+      x-internal: false
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

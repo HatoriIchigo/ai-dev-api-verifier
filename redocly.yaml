@@ -1,0 +1,21 @@
+# 商用リリース向けの lint ベースライン。
+# recommended は security 未定義・summary 欠落などを error として検出するため、
+# 仕様書の品質ゲートとして採用する。
+extends:
+  - recommended
+
+rules:
+  # 社内 backend 間の IF 仕様書であり OSS ライセンスの概念が無いため、
+  # info-license のみ意図的に無効化する（2026-06 合意）。
+  info-license: off
+
+  # すべての operation に 4xx レスポンス定義を必須とする（warning → error に格上げ）。
+  operation-4xx-response: error
+  # operationId を必須とする。検証は redocly に一本化する（自前チェックは行わない）。
+  operation-operationId: error
+  # server URL に example.com / localhost を使わせない（本番 URL を強制）。
+  no-server-example.com: error
+  # operation の description を推奨（不足は warning として可視化）。
+  operation-description: warn
+  # スカラープロパティに example を必須とする。
+  scalar-property-missing-example: error

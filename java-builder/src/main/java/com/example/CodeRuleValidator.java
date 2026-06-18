@@ -72,7 +72,8 @@ import java.util.stream.Stream;
  *
  * <ol>
  *   <li>文字列リテラルのハードコードは {@code constants/}・{@code validation/} 以外で禁止。</li>
- *   <li>（1.2）{@code UUID.randomUUID()} の使用禁止（全レイヤー）。ID は受け取る／注入する。</li>
+ *   <li>（1.2）非決定的な乱数・ID 生成の禁止（全レイヤー）: {@code UUID.randomUUID()} /
+ *       {@code Math.random()} / {@code new Random()}。受け取る／注入する（{@code SecureRandom} は対象外）。</li>
  *   <li>{@code dto/**}・{@code repository/*}・{@code constants/*} で条件・繰り返し処理を禁止。</li>
  *   <li>{@code layer1/} の各クラスは {@code repository} を import していること。</li>
  *   <li>{@code repository/Foo.java} には {@code dto/in/Foo.java} と {@code dto/out/Foo.java}
@@ -279,8 +280,8 @@ public final class CodeRuleValidator {
                 flag(cu, ConditionalExpr.class, "三項演算子", file, dir, violations);
             }
 
-            // ルール1.2: UUID.randomUUID() の使用禁止（全レイヤー対象）
-            violations.addAll(validateNoRandomUuid(file, cu));
+            // ルール1.2: 非決定的な乱数・ID 生成の禁止（UUID.randomUUID / Math.random / new Random、全レイヤー対象）
+            violations.addAll(validateNoNondeterministicRandom(file, cu));
 
             // ルール4.1: DTO は Lombok の利用を必須とする
             if (isDtoDir(dir)) {
@@ -846,32 +847,59 @@ public final class CodeRuleValidator {
     }
 
     /**
-     * ルール1.2: {@code UUID.randomUUID()} の使用を禁止する（全レイヤー対象）。
-     * ID をその場で非決定的に生成すると、本来は呼び出し元・永続化層から受け取る／注入すべき値を
+     * ルール1.2: 非決定的な乱数・ID 生成を禁止する（全レイヤー対象）。
+     * その場で非決定的に値を作ると、本来は呼び出し元・永続化層から受け取る／注入すべき値を
      * 握りつぶして「無理やりテストを通す」実装を許してしまい、再現性も損なう。
-     * ID は呼び出し元から受け取るか、ID 生成器を注入して使うこと。
-     * {@code UUID.randomUUID()}（FQN の {@code java.util.UUID.randomUUID()} 含む）と、
-     * {@code java.util.UUID.randomUUID} の static import 経由の {@code randomUUID()} を検出する。
+     * ID は呼び出し元から受け取るか ID 生成器を注入し、乱数が必要な場合は乱数源を注入する
+     * （セキュリティ用途は {@code SecureRandom} を使う＝本ルールの対象外）。検出対象:
+     * <ul>
+     *   <li>{@code UUID.randomUUID()}（FQN {@code java.util.UUID.randomUUID()} / static import 経由の {@code randomUUID()} 含む）</li>
+     *   <li>{@code Math.random()}（FQN {@code java.lang.Math.random()} / static import 経由の {@code random()} 含む）</li>
+     *   <li>{@code new Random(...)}（{@code java.util.Random}。{@code SecureRandom} は対象外）</li>
+     * </ul>
      */
-    private List<String> validateNoRandomUuid(Path file, CompilationUnit cu) {
+    private List<String> validateNoNondeterministicRandom(Path file, CompilationUnit cu) {
         List<String> violations = new ArrayList<>();
-        boolean staticImport = cu.getImports().stream().anyMatch(imp -> imp.isStatic()
-                && (imp.getNameAsString().equals("java.util.UUID.randomUUID")
-                        || (imp.isAsterisk() && imp.getNameAsString().equals("java.util.UUID"))));
+        boolean uuidStatic = staticImported(cu, "java.util.UUID", "randomUUID");
+        boolean mathRandomStatic = staticImported(cu, "java.lang.Math", "random");
+
         for (MethodCallExpr call : cu.findAll(MethodCallExpr.class)) {
-            if (!call.getNameAsString().equals("randomUUID")) {
-                continue;
+            String name = call.getNameAsString();
+            if (name.equals("randomUUID")) {
+                boolean hit = call.getScope()
+                        .map(scope -> simpleName(scope.toString()).equals("UUID"))
+                        .orElse(uuidStatic);
+                if (hit) {
+                    violations.add(loc(file, call)
+                            + " UUID.randomUUID() の使用は禁止です。ID は呼び出し元から受け取るか ID 生成器を注入してください"
+                            + "（非決定的な実装でのテスト通過・再現性低下を防ぐため）");
+                }
+            } else if (name.equals("random")) {
+                boolean hit = call.getScope()
+                        .map(scope -> simpleName(scope.toString()).equals("Math"))
+                        .orElse(mathRandomStatic);
+                if (hit) {
+                    violations.add(loc(file, call)
+                            + " Math.random() の使用は禁止です。乱数源を注入し、セキュリティ用途は SecureRandom を使ってください"
+                            + "（非決定的な実装でのテスト通過・再現性低下を防ぐため）");
+                }
             }
-            boolean isUuidCall = call.getScope()
-                    .map(scope -> simpleName(scope.toString()).equals("UUID"))
-                    .orElse(staticImport);
-            if (isUuidCall) {
-                violations.add(loc(file, call)
-                        + " UUID.randomUUID() の使用は禁止です。ID は呼び出し元から受け取るか ID 生成器を注入してください"
+        }
+        for (ObjectCreationExpr creation : cu.findAll(ObjectCreationExpr.class)) {
+            if (creation.getType().getNameAsString().equals("Random")) {
+                violations.add(loc(file, creation)
+                        + " java.util.Random の生成は禁止です。乱数源を注入し、セキュリティ用途は SecureRandom を使ってください"
                         + "（非決定的な実装でのテスト通過・再現性低下を防ぐため）");
             }
         }
         return violations;
+    }
+
+    /** {@code import static <owner>.<member>;} または {@code import static <owner>.*;} があるか。 */
+    private boolean staticImported(CompilationUnit cu, String owner, String member) {
+        return cu.getImports().stream().anyMatch(imp -> imp.isStatic()
+                && (imp.getNameAsString().equals(owner + "." + member)
+                        || (imp.isAsterisk() && imp.getNameAsString().equals(owner))));
     }
 
     /**

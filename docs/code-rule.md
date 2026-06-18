@@ -77,11 +77,16 @@ src/main/java/com/<projectName>/app/
    変数名・文字列・コメント等ソーステキスト全体が対象）。1つでも現れればエラー。`src/test` 配下は対象外。
    （禁止語の外部設定は [docs/java-builder.md](java-builder.md) を参照）
 
-1.2. **`UUID.randomUUID()` の使用禁止（例外なし・全レイヤー）**: ID をその場で非決定的に生成すると、
+1.2. **非決定的な乱数・ID 生成の禁止（例外なし・全レイヤー）**: その場で非決定的に値を生成すると、
    本来は呼び出し元・永続化層から受け取る／注入すべき値を握りつぶし、「無理やりテストを通す」実装や
-   再現性の低下を招く。ID は呼び出し元から受け取るか ID 生成器を注入して使うこと。検出対象は
-   `UUID.randomUUID()`（FQN の `java.util.UUID.randomUUID()` を含む）と、`java.util.UUID.randomUUID` の
-   static import 経由の `randomUUID()`。AST 検査のため `java-builder` のみで判定する。
+   再現性の低下を招く。ID は呼び出し元から受け取るか ID 生成器を注入し、乱数が必要な場合は乱数源を
+   注入する。検出対象:
+   - `UUID.randomUUID()`（FQN `java.util.UUID.randomUUID()` / static import 経由の `randomUUID()` 含む）
+   - `Math.random()`（FQN `java.lang.Math.random()` / static import 経由の `random()` 含む）
+   - `new Random(...)`（`java.util.Random`）
+
+   セキュリティ用途の乱数は `SecureRandom` を使うこと（**本ルールの対象外**）。
+   AST 検査のため `java-builder` のみで判定する。
 
 2. **処理の禁止**: `dto/**/*.java`・`repository/*.java`・`constants/*.java` では条件・繰り返し処理
    （`if` / `for` / 拡張 `for` / `while` / `do-while` / `switch` 文・式 / 三項演算子）を禁止。

@@ -36,5 +36,5 @@ description: バックエンドの IF 仕様書（OpenAPI YAML）とレイヤー
 設計 JSON は IF 仕様書の写像なので、次を必ず一致させる。
 
 - OpenAPI の `operationId` ↔ 設計 JSON の `top[].operationId`（1:1 対応）。
-- OpenAPI の `x-internal: true` ↔ JSON `top[].entry` が `internal/Xxx`、`false`／省略 ↔ `top/Xxx`。
+- OpenAPI の `x-internal: true`（外部接続あり）↔ JSON `top[].entry` が `top/Xxx`、`false`／省略（外部接続なし）↔ `internal/Xxx`。
 - `internal`（backend 完結）のエンドポイントは repository に到達してはならない（外部接続なしの宣言と実態を一致させる）。

@@ -15,13 +15,13 @@ import java.util.Map;
  *
  * <p>operation レベルのベンダ拡張 {@code x-internal} で外部接続要否を宣言する。
  * <ul>
- *   <li>{@code x-internal: true} … 外部接続なし。エントリクラスは {@code app/internal/} に置く。</li>
- *   <li>{@code x-internal} 省略／{@code false} … 外部接続あり（既定）。エントリクラスは {@code app/top/}。</li>
+ *   <li>{@code x-internal: true} … 外部接続あり。エントリクラスは {@code app/top/} に置く。</li>
+ *   <li>{@code x-internal} 省略／{@code false} … 外部接続なし。エントリクラスは {@code app/internal/}。</li>
  * </ul>
  *
  * <p>{@code operationId} をエントリクラス名（PascalCase）にマッピングし、宣言どおりのゾーンに
  * クラスが存在すること（かつ逆ゾーンに存在しないこと）を検証する。
- * 例: {@code checkHealth -> internal/CheckHealth.java}、{@code loginAccount -> top/LoginAccount.java}。
+ * 例: {@code loginAccount -> top/LoginAccount.java}、{@code checkHealth -> internal/CheckHealth.java}。
  *
  * <p>internal エントリの「外部到達禁止」は {@link CodeRuleValidator} のルール10で別途検証する。
  */
@@ -75,20 +75,20 @@ public final class OpenApiValidator {
                     continue;
                 }
                 String operationId = (String) opIdObj;
-                boolean internal = Boolean.TRUE.equals(operation.get("x-internal"));
-                violations.addAll(verifyZone(operationId, internal));
+                boolean external = Boolean.TRUE.equals(operation.get("x-internal"));
+                violations.addAll(verifyZone(operationId, external));
             }
         }
         return violations;
     }
 
     /** 宣言ゾーンにエントリクラスが存在し、逆ゾーンには存在しないことを検証する。 */
-    private List<String> verifyZone(String operationId, boolean internal) {
+    private List<String> verifyZone(String operationId, boolean external) {
         List<String> violations = new ArrayList<>();
         String className = pascalCase(operationId);
-        String expectedDir = internal ? INTERNAL_DIR : TOP_DIR;
-        String otherDir = internal ? TOP_DIR : INTERNAL_DIR;
-        String zoneLabel = internal ? "x-internal:true（外部接続なし）" : "外部接続あり（既定）";
+        String expectedDir = external ? TOP_DIR : INTERNAL_DIR;
+        String otherDir = external ? INTERNAL_DIR : TOP_DIR;
+        String zoneLabel = external ? "x-internal:true（外部接続あり）" : "x-internal:false/省略（外部接続なし）";
 
         Path expected = appDir.resolve(expectedDir).resolve(className + ".java");
         Path other = appDir.resolve(otherDir).resolve(className + ".java");

@@ -77,12 +77,12 @@ JSON からは判定できないルールを含む）。
 （例の仕様書を `examples/openapi.yaml` に同梱）。
 
 - **宣言**: operation レベルのベンダ拡張 `x-internal` で宣言する。
-  - `x-internal: true` … 外部接続なし。エントリクラスは `app/internal/` に置く。
-  - `x-internal` 省略／`false` … 外部接続あり（既定）。エントリクラスは `app/top/`。
+  - `x-internal: true` … 外部接続あり。エントリクラスは `app/top/` に置く。
+  - `x-internal` 省略／`false` … 外部接続なし（backend 完結）。エントリクラスは `app/internal/`。
 - **マッピング**: `operationId` をエントリクラス名（PascalCase）に対応付ける
   （例: `checkHealth` → `internal/CheckHealth.java`、`loginAccount` → `top/LoginAccount.java`）。
 - **判定ロジック**:
-  1. ゾーン整合: `x-internal: true` のエントリは `internal/` に、省略/false のエントリは `top/` に存在すること。
+  1. ゾーン整合: `x-internal: true` のエントリは `top/` に、省略/false のエントリは `internal/` に存在すること。
   2. internal の外部到達禁止（[code-rule.md](code-rule.md) ルール 10）: internal エントリの import 推移閉包に
      `repository`／外部連携パッケージが現れたらエラー（＝internal 宣言が嘘でないことを保証）。
   3. 外部エントリは従来どおり `top → layer → repository` で外部連携する（ルール 3/7/8/15）。

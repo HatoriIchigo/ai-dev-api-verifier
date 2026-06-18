@@ -35,8 +35,8 @@
 各要素に `path` / `method` / `description` / `imports` が**必須**。`operationId` は IF 仕様書の
 operation と 1:1 対応させ、`entry` は `top/Xxx`（外部接続あり）または `internal/Xxx`（backend 完結）。
 
-- IF 仕様書で `x-internal: false`／省略のエンドポイント → `entry` は `top/`。
-- IF 仕様書で `x-internal: true` のエンドポイント → `entry` は `internal/`。
+- IF 仕様書で `x-internal: true`（外部接続あり）のエンドポイント → `entry` は `top/`。
+- IF 仕様書で `x-internal: false`／省略（外部接続なし）のエンドポイント → `entry` は `internal/`。
 - `imports` で参照できるレイヤーは **最大番号のレイヤー（`layer<最大>`）のみ**（[code-rule 8]）。
 - `top` のエントリは `external` を持てない（[layer-rule 15]）。
 

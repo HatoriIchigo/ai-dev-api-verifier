@@ -65,6 +65,9 @@ public final class DirectoryValidator {
         // ルール1.4: localhost のハードコード禁止（src/main/java・src/test/java 双方が対象）。
         violations.addAll(new LocalhostValidator(root).validate());
 
+        // ルール19: constants の定数値とテストリテラルの重複検出（答え合わせ漏洩。src/main・src/test 双方が対象）。
+        violations.addAll(new ConstantsTestDataValidator(root).validate());
+
         // ルール18: IF仕様書（OpenAPI）が指定されていれば、統合テストのエンドポイント網羅検査に使う path 一覧を読み込む。
         List<String> endpointPaths = openApiFile != null
                 ? OpenApiValidator.loadEndpointPaths(openApiFile)

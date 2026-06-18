@@ -1,0 +1,48 @@
+# 外部ツール連携とみなすパッケージ接頭辞の拒否リスト。
+# ここに列挙したパッケージを import できるのは repository/*.java のみ。
+# それ以外のレイヤー（top / layer* / dto / log / util / validation / constants / Application）で
+# import するとエラーになる。
+#
+# 書式:
+#   - 1行に1つのパッケージ（またはクラス）接頭辞を記載
+#   - 「接頭辞」と完全一致、または「接頭辞.」で始まる import にマッチ
+#   - '#' 以降は行コメント。空行は無視
+#
+# 差し替え方法（再ビルド不要）:
+#   - 実行時のカレントディレクトリに external-packages.txt を置く、または
+#   - java -Dexternal.packages=/path/to/list.txt -jar app.jar <project>
+
+# ---- DB / 永続化 ----
+java.sql
+javax.sql
+jakarta.persistence
+javax.persistence
+org.hibernate
+org.springframework.data
+org.springframework.jdbc
+org.mybatis
+org.apache.ibatis
+com.zaxxer.hikari
+
+# ---- AWS SDK（Cognito 等を含む） ----
+software.amazon.awssdk
+com.amazonaws
+
+# ---- HTTP / 外部ネットワーク接続 ----
+java.net.http
+java.net.Socket
+java.net.URLConnection
+java.net.HttpURLConnection
+org.springframework.web.client
+org.springframework.web.reactive.function.client
+okhttp3
+org.apache.http
+retrofit2
+feign
+
+# ---- メッセージング / キャッシュ ----
+org.apache.kafka
+org.springframework.kafka
+io.lettuce
+redis.clients
+com.rabbitmq

@@ -1,0 +1,371 @@
+#!/usr/bin/env bash
+#
+# verify.sh
+#
+# レイヤーアーキテクチャの元となる JSON ファイルをチェックするスクリプト。
+# jq が未インストールの場合は自動でインストールを試みる。
+#
+# 使い方:
+#   ./verify.sh <input.json>
+#
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# ログ出力
+# ---------------------------------------------------------------------------
+info()  { printf '\033[36m[INFO]\033[0m  %s\n' "$*"; }
+warn()  { printf '\033[33m[WARN]\033[0m  %s\n' "$*" >&2; }
+error() { printf '\033[31m[ERROR]\033[0m %s\n' "$*" >&2; }
+
+# ---------------------------------------------------------------------------
+# jq の存在確認とインストール
+# ---------------------------------------------------------------------------
+install_jq() {
+  info "jq が見つかりません。インストールを試みます..."
+
+  # root 以外、かつ sudo がある場合のみ sudo を付与する
+  local SUDO=""
+  if [[ "$(id -u)" -ne 0 ]] && command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
+  fi
+
+  # OS / パッケージマネージャを判定してインストール
+  if command -v apt-get >/dev/null 2>&1; then
+    $SUDO apt-get update && $SUDO apt-get install -y jq
+  elif command -v dnf >/dev/null 2>&1; then
+    $SUDO dnf install -y jq
+  elif command -v yum >/dev/null 2>&1; then
+    $SUDO yum install -y jq
+  elif command -v apk >/dev/null 2>&1; then
+    $SUDO apk add --no-cache jq
+  elif command -v pacman >/dev/null 2>&1; then
+    $SUDO pacman -Sy --noconfirm jq
+  elif command -v zypper >/dev/null 2>&1; then
+    $SUDO zypper install -y jq
+  elif command -v brew >/dev/null 2>&1; then
+    brew install jq
+  else
+    error "対応するパッケージマネージャが見つかりませんでした。手動で jq をインストールしてください: https://jqlang.github.io/jq/"
+    exit 1
+  fi
+}
+
+ensure_jq() {
+  if command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+
+  install_jq
+
+  if ! command -v jq >/dev/null 2>&1; then
+    error "jq のインストールに失敗しました。"
+    exit 1
+  fi
+  info "jq のインストールが完了しました (version: $(jq --version))"
+}
+
+# ---------------------------------------------------------------------------
+# JSON ファイルの検証
+# ---------------------------------------------------------------------------
+verify_json() {
+  local file="$1"
+
+  if [[ ! -f "$file" ]]; then
+    error "ファイルが存在しません: $file"
+    exit 1
+  fi
+
+  # JSON 構文として妥当かチェック
+  if ! jq empty "$file" >/dev/null 2>&1; then
+    error "JSON の構文が不正です: $file"
+    jq empty "$file" || true
+    exit 1
+  fi
+
+  info "JSON 構文 OK: $file"
+}
+
+# ---------------------------------------------------------------------------
+# レイヤー構成の検証
+#   - top / layer / repository / dto が必須
+#   - layer のキーは layer<数値> 形式
+#   - top の各エンドポイントに path / method / description / imports 必須
+#   - dto 以外の各コンポーネント定義に imports 必須
+# ---------------------------------------------------------------------------
+verify_structure() {
+  local file="$1"
+  local errors
+
+  errors="$(jq -r '
+    . as $root
+    | [
+        # 必須トップレベルキー
+        ( ["top","layer","repository","dto"][] as $k
+          | select( ($root | has($k)) | not )
+          | "必須キーがありません: \($k)" ),
+
+        # layer のキーは layer<数値>
+        ( ($root.layer // {})
+          | select(type == "object")
+          | keys_unsorted[]
+          | select( test("^layer[0-9]+$") | not )
+          | "layer のキー名が不正です（layer<数値> であること）: \(.)" ),
+
+        # top エンドポイントの必須フィールド
+        ( ($root.top // [])
+          | to_entries[]
+          | .key as $i | .value as $e
+          | ["path","method","description","imports"][] as $f
+          | select( ($e | has($f)) | not )
+          | "top[\($i)] に必須フィールドがありません: \($f)" ),
+
+        # imports 必須（dto 以外）: layer
+        ( ($root.layer // {})
+          | select(type == "object")
+          | to_entries[]
+          | .key as $lk | (.value // [])
+          | to_entries[]
+          | "\($lk)[\(.key)]" as $loc | .value
+          | select( has("imports") | not )
+          | "layer.\($loc) に imports がありません" ),
+
+        # imports 必須（dto 以外）: repository
+        ( ($root.repository // [])
+          | to_entries[]
+          | .key as $i | .value
+          | select( has("imports") | not )
+          | "repository[\($i)] に imports がありません" ),
+
+        # repository.external の形式
+        #   - 文字列（cognito 等のその他連携）
+        #   - { "db":  { "schema": ... } }
+        #   - { "api": { "url": ..., "method": ... } }
+        ( ($root.repository // [])
+          | to_entries[]
+          | .key as $i | .value
+          | select( has("external") )
+          | .external as $ext
+          | if   ($ext | type) == "string" then empty
+            elif ($ext | type) == "object" then
+              ( $ext | to_entries[]
+                | .key as $ek | .value as $ev
+                | if   $ek == "db"  then
+                    ( ["schema"][] as $f
+                      | select( ($ev | has($f)) | not )
+                      | "repository[\($i)].external.db に \($f) がありません" )
+                  elif $ek == "api" then
+                    ( ["url","method"][] as $f
+                      | select( ($ev | has($f)) | not )
+                      | "repository[\($i)].external.api に \($f) がありません" )
+                  else
+                    "repository[\($i)].external のキーが不正です（db / api のみ）: \($ek)"
+                  end )
+            else
+              "repository[\($i)].external の型が不正です（文字列 または オブジェクト）"
+            end )
+      ]
+    | .[]
+  ' "$file")"
+
+  if [[ -n "$errors" ]]; then
+    while IFS= read -r line; do
+      error "$line"
+    done <<< "$errors"
+    exit 1
+  fi
+
+  info "レイヤー構成 OK: $file"
+}
+
+# ---------------------------------------------------------------------------
+# レイヤールール検証（../java-builder/docs 由来）
+#   このJSONから構造的に判定できるルールのみを実装する。
+#   （文字列ハードコード/if-for禁止/サイズ制限等のASTレベルのルールは
+#     Javaソースが必要なため対象外）
+#
+#   - projectName 形式（^[0-9A-Za-z_-]+$）           [directory-structure]
+#   - layer 連番（1始まり・歯抜けなし）              [directory-structure]
+#   - dto.in と dto.out の件数一致                    [directory-structure]
+#   - repository/Foo ↔ dto/in/Foo・dto/out/Foo 対応  [code-rule 4]
+#   - import 宛先の実在（dangling 参照検出）          [整合性]
+#   - layer1 は repository を import 必須             [code-rule 3]
+#   - layer<N>(N≥2) は下位レイヤーを import 必須      [code-rule 7]
+#   - レイヤー差 ≥2 の import 禁止                    [layer-rule 14]
+#   - top は最大レイヤーのみ import 可                [code-rule 8]
+#   - external は repository のみ                     [layer-rule 15]
+#   - internal の推移閉包に repository が現れない     [code-rule 10]
+# ---------------------------------------------------------------------------
+verify_rules() {
+  local file="$1"
+  local errors
+
+  errors="$(jq -r '
+    . as $root
+    | ( ($root.layer // {}) | keys
+        | map(capture("^layer(?<n>[0-9]+)$").n | tonumber) ) as $layernums
+    | ( ($layernums | max) // 0 ) as $maxlayer
+
+    # import 参照文字列 "<zone>/<Name>" を解決できるか
+    | def resolves:
+        . as $ref
+        | if   test("^layer[0-9]+/")
+          then capture("^layer(?<n>[0-9]+)/(?<name>.+)$") as $m
+               | ( ($root.layer["layer"+$m.n] // []) | any(.name == $m.name) )
+          elif test("^repository/")
+          then sub("^repository/";"") as $name
+               | ( ($root.repository // []) | any(.name == $name) )
+          elif test("^internal/")
+          then sub("^internal/";"") as $name
+               | ( ($root.internal // {}) | has($name) )
+          elif test("^dto/in/")
+          then sub("^dto/in/";"") as $name | ( ($root.dto.in  // []) | any(. == $name) )
+          elif test("^dto/out/")
+          then sub("^dto/out/";"") as $name | ( ($root.dto.out // []) | any(. == $name) )
+          elif test("^(constants|validation|util|log)/")
+          then capture("^(?<z>constants|validation|util|log)/(?<name>.+)$") as $m
+               | ( ($root[$m.z] // []) | any(. == $m.name) )
+          else false
+          end;
+
+    # 参照文字列が指すコンポーネントの imports（グラフの出辺）
+    def importsOf:
+        . as $ref
+        | if   test("^layer[0-9]+/")
+          then capture("^layer(?<n>[0-9]+)/(?<name>.+)$") as $m
+               | [ ($root.layer["layer"+$m.n] // [])[] | select(.name==$m.name) | (.imports // [])[] ]
+          elif test("^internal/")
+          then sub("^internal/";"") as $name
+               | [ ($root.internal[$name] // [])[] | (.imports // [])[] ]
+          elif test("^repository/")
+          then sub("^repository/";"") as $name
+               | [ ($root.repository // [])[] | select(.name==$name) | (.imports // [])[] ]
+          else []
+          end;
+
+    [
+        # projectName 形式
+        ( $root | select(has("projectName")) | .projectName
+          | select( test("^[0-9A-Za-z_-]+$") | not )
+          | "projectName が不正です（^[0-9A-Za-z_-]+$）: \(.)" ),
+
+        # layer 連番（1始まり・歯抜けなし）
+        ( ($layernums | sort) as $ns
+          | [range(1; ($ns|length)+1)] as $exp
+          | select($ns != $exp)
+          | "layer 番号は1始まりの連番である必要があります: 検出=[\($ns|join(","))] 期待=[\($exp|join(","))]" ),
+
+        # dto.in / dto.out 件数一致
+        ( select( (($root.dto.in // [])|length) != (($root.dto.out // [])|length) )
+          | "dto.in と dto.out の件数が一致しません: in=\(($root.dto.in//[])|length) out=\(($root.dto.out//[])|length)" ),
+
+        # repository ↔ dto 対応（code-rule 4）
+        ( ($root.repository // [])[] | .name as $rn
+          | select( (($root.dto.in // [])|any(.==$rn)) | not )
+          | "repository \"\($rn)\" に対応する dto/in/\($rn) がありません [code-rule 4]" ),
+        ( ($root.repository // [])[] | .name as $rn
+          | select( (($root.dto.out // [])|any(.==$rn)) | not )
+          | "repository \"\($rn)\" に対応する dto/out/\($rn) がありません [code-rule 4]" ),
+
+        # repository.imports は dto/in・dto/out をそれぞれ1件ずつ含む（code-rule 4）
+        ( ($root.repository // []) | to_entries[] | .key as $i | .value as $r
+          | ([ ($r.imports // [])[] | select(test("^dto/in/")) ] | length) as $nin
+          | select($nin != 1)
+          | "repository[\($i)] (\($r.name)) の imports に dto/in が \($nin) 件あります（ちょうど1件である必要）[code-rule 4]" ),
+        ( ($root.repository // []) | to_entries[] | .key as $i | .value as $r
+          | ([ ($r.imports // [])[] | select(test("^dto/out/")) ] | length) as $nout
+          | select($nout != 1)
+          | "repository[\($i)] (\($r.name)) の imports に dto/out が \($nout) 件あります（ちょうど1件である必要）[code-rule 4]" ),
+
+        # import 宛先の実在（dangling 参照）
+        ( ($root.top // []) | to_entries[] | .key as $i | (.value.imports // [])[] as $ref
+          | select( ($ref|resolves) | not )
+          | "top[\($i)] の import 先が存在しません: \($ref)" ),
+        ( ($root.layer // {}) | to_entries[] | .key as $lk | (.value//[]) | to_entries[]
+          | .key as $i | (.value.imports // [])[] as $ref
+          | select( ($ref|resolves) | not )
+          | "layer.\($lk)[\($i)] の import 先が存在しません: \($ref)" ),
+        ( ($root.internal // {}) | to_entries[] | .key as $lk | (.value//[]) | to_entries[]
+          | .key as $i | (.value.imports // [])[] as $ref
+          | select( ($ref|resolves) | not )
+          | "internal.\($lk)[\($i)] の import 先が存在しません: \($ref)" ),
+        ( ($root.repository // []) | to_entries[] | .key as $i | (.value.imports // [])[] as $ref
+          | select( ($ref|resolves) | not )
+          | "repository[\($i)] の import 先が存在しません: \($ref)" ),
+
+        # layer1 は repository を import 必須（code-rule 3）
+        ( ($root.layer.layer1 // []) | to_entries[] | .key as $i | .value
+          | select( ((.imports // []) | any(test("^repository/"))) | not )
+          | "layer1[\($i)] (\(.name)) は repository を import していません [code-rule 3]" ),
+
+        # layer<N>(N≥2) は下位レイヤーを import 必須（code-rule 7）
+        ( ($root.layer // {}) | to_entries[]
+          | (.key | capture("^layer(?<n>[0-9]+)$").n | tonumber) as $N
+          | select($N >= 2)
+          | .value | to_entries[] | .key as $i | .value
+          | ([ (.imports // [])[] | select(test("^layer[0-9]+/")) | capture("^layer(?<n>[0-9]+)/").n | tonumber ]) as $lns
+          | select( ($lns | any(. < $N)) | not )
+          | "layer\($N)[\($i)] (\(.name)) は下位レイヤー(layer1..layer\($N-1))を import していません [code-rule 7]" ),
+
+        # レイヤー差 ≥2 の import 禁止（layer-rule 14）
+        ( ($root.layer // {}) | to_entries[]
+          | (.key | capture("^layer(?<n>[0-9]+)$").n | tonumber) as $N
+          | .value | to_entries[] | .key as $i | .value as $c
+          | ($c.imports // [])[] | select(test("^layer[0-9]+/"))
+          | capture("^layer(?<n>[0-9]+)/(?<name>.+)$") as $m | ($m.n|tonumber) as $M
+          | select( ($N - $M) >= 2 )
+          | "layer\($N)[\($i)] (\($c.name)) が layer\($M)/\($m.name) を import（レイヤー差>=2は禁止）[layer-rule 14]" ),
+
+        # top は最大レイヤーのみ import 可（code-rule 8）
+        ( ($root.top // []) | to_entries[] | .key as $i | .value as $e
+          | ($e.imports // [])[] | select(test("^layer[0-9]+/"))
+          | capture("^layer(?<n>[0-9]+)/(?<name>.+)$") as $m | ($m.n|tonumber) as $M
+          | select($M != $maxlayer)
+          | "top[\($i)] (\($e.operationId // "?")) は最大レイヤー(layer\($maxlayer))以外を import しています: layer\($M)/\($m.name) [code-rule 8]" ),
+
+        # external は repository のみ（layer-rule 15）
+        ( ($root.top // [])[] | select(has("external"))
+          | "top のエンドポイントに external は持てません（repository のみ）[layer-rule 15]" ),
+        ( ($root.layer // {}) | to_entries[] | .key as $lk | (.value//[])[] | select(has("external"))
+          | "layer.\($lk) のコンポーネントに external は持てません（repository のみ）[layer-rule 15]" ),
+        ( ($root.internal // {}) | to_entries[] | .key as $lk | (.value//[])[] | select(has("external"))
+          | "internal.\($lk) のコンポーネントに external は持てません（repository のみ）[layer-rule 15]" ),
+
+        # internal の推移閉包に repository が現れてはならない（code-rule 10）
+        ( ( ($root.internal // {}) | keys | map("internal/" + .) ) as $seed
+          | ( $seed
+              | until( ([ .[] | importsOf[] ] - . | length) == 0;
+                       (. + [ .[] | importsOf[] ]) | unique ) ) as $closure
+          | $closure[] | select(test("^repository/"))
+          | "internal が repository に到達しています（backend完結ではない）: \(.) [code-rule 10]" )
+      ]
+    | .[]
+  ' "$file")"
+
+  if [[ -n "$errors" ]]; then
+    while IFS= read -r line; do
+      error "$line"
+    done <<< "$errors"
+    exit 1
+  fi
+
+  info "レイヤールール OK: $file"
+}
+
+# ---------------------------------------------------------------------------
+# メイン
+# ---------------------------------------------------------------------------
+main() {
+  if [[ $# -lt 1 ]]; then
+    error "使い方: $0 <input.json>"
+    exit 1
+  fi
+
+  ensure_jq
+  verify_json "$1"
+  verify_structure "$1"
+  verify_rules "$1"
+
+  info "検証が完了しました。"
+}
+
+main "$@"

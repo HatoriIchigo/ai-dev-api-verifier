@@ -1,0 +1,129 @@
+# コードルール（レイヤードアーキテクチャ構成規約）
+
+レイヤードアーキテクチャの**構成・依存・配置ルール**を一元管理する正本（カタログ）です。
+設計 JSON と Java 実装の双方が満たすべき規約を、ツール非依存で番号付き定義します。
+
+## 検証主体（どのツールがどう担保するか）
+
+同じルールを、対象成果物に応じて 2 つのツールが別レベルで検証します。
+
+| ツール | 対象 | レベル | 詳細 |
+|--------|------|--------|------|
+| [`layered-checker`](layered-checker.md) | 設計 JSON | **構造**から判定できるルールのみ | `verify.sh`（bash / jq） |
+| [`java-builder`](java-builder.md) | Java ソース | **AST**まで含む全ルール | Docker / JavaParser |
+
+- `layered-checker` が担保するのは構造的に判定可能なルール（後述の「構造判定可」印あり）。
+  文字列ハードコード・if/for 禁止・サイズ制限など AST が必要なルールは対象外で、`java-builder` が担う。
+- `java-builder` の AST 実装に固有の詳細（検出方式・外部設定ファイル・シンボル解決の限界・
+  OpenAPI との突合など）は [`docs/java-builder.md`](java-builder.md) に置く。本ファイルはルール本体の正本とする。
+
+---
+
+## ディレクトリ構成ルール
+
+### プロジェクトルート構成
+
+```
+src/main/java/com/<projectName>/app/
+```
+
+- D1. `<projectName>` は `^[0-9A-Za-z-_]+$`（英数字・ハイフン・アンダースコア）にマッチすること。【構造判定可】
+- 上記構成でなければエラー終了。
+
+### ソースツリーのファイル種別（main / test 共通）
+
+- `src/main/java/`・`src/test/java/` 配下には `.java` ファイルのみ配置できる。
+- `src/main/resources/`・`src/test/resources/` 配下には `.yaml`・`.yml` ファイルのみ配置できる。
+- 対象ディレクトリが存在しない場合はスキップ。許可外の拡張子があればエラー。
+
+### app/ 配下の構成
+
+| パス | 概要 |
+| -- | -- |
+| `Application.java` | メイン（app 直下に置けるのはこのファイルのみ） |
+| `top/*.java` | 最上位層（外部接続ありエンドポイントのエントリ） |
+| `internal/*.java` | backend 完結エンドポイントのエントリ（外部接続なし。repository/外部連携への到達禁止） |
+| `layer<数値>/*.java` | サービス層（`^layer[0-9]+$`、複数可。1始まりの連番であること） |
+| `repository/*.java` | 外部ツールとの連携 |
+| `dto/in/*.java` | in 側の DTO |
+| `dto/out/*.java` | out 側の DTO |
+| `log/*.java` | ログ関連 |
+| `util/*.java` | util ツール |
+| `validation/*.java` | バリデーション関連 |
+| `constants/*.java` | 定数 |
+
+- D2. 上記以外の場所に `.java` ファイルがあればエラー。
+- D3. `dto/in` と `dto/out` の `.java` ファイル数が一致しなければエラー。【構造判定可】
+- D4. `layer<数値>` は1始まりの連番であること。歯抜け（例: layer1〜4, layer6〜7 で layer5 が欠番）はエラー。【構造判定可】
+
+---
+
+## コード内容ルール（AST 検査）
+
+1. **文字列ハードコードの集約**: 文字列リテラルは `constants/*.java` と `validation/*.java` のみ許可。
+   それ以外の場所（`top` / `layer*` / `repository` / `dto/**` / `log` / `util` / `Application.java`）に
+   文字列リテラルがあればエラー（アノテーション引数の文字列も対象）。
+   - **SQL 文字列の禁止（例外なし）**: `SELECT` / `INSERT` / `UPDATE` / `DELETE` / `MERGE` /
+     `CREATE` / `DROP` / `ALTER` / `TRUNCATE` で始まる文字列リテラルは、`constants/`・`validation/`
+     を含む**すべての場所で禁止**。生 SQL を集約するのではなく、SQL mapper（MyBatis / JPA 等）の
+     仕様を優先すること。
+   - **外部化すべき値のハードコード禁止（例外なし）**: シークレット（パスワード・トークン・API キー等）に
+     加え、**ユーザ名系・DB 接続情報系・URL 系**といった環境依存の設定値は、`constants/`・`validation/` を
+     含む**すべての場所で禁止**。`application.yaml` + 環境変数経由で注入すること。
+     （名前ベース／値ベースの検出方式・外部設定ファイルは [docs/java-builder.md](java-builder.md) を参照）
+
+1.1. **使用禁止語（テストダブル混入防止）**: `src/main/java` 配下（本番コード**全体**）では
+   `dummy` / `mock` / `fake` / `stub` 等の語を使用禁止（大文字小文字無視の部分一致。クラス名・メソッド名・
+   変数名・文字列・コメント等ソーステキスト全体が対象）。1つでも現れればエラー。`src/test` 配下は対象外。
+   （禁止語の外部設定は [docs/java-builder.md](java-builder.md) を参照）
+
+2. **処理の禁止**: `dto/**/*.java`・`repository/*.java`・`constants/*.java` では条件・繰り返し処理
+   （`if` / `for` / 拡張 `for` / `while` / `do-while` / `switch` 文・式 / 三項演算子）を禁止。
+3. **layer1 は repository 利用必須**: `layer1/` の各クラスは repository パッケージ
+   （`com.<projectName>.app.repository`）を import していること。【構造判定可】
+4. **repository と DTO の対応**: `repository/Foo.java` には同名の `dto/in/Foo.java` と
+   `dto/out/Foo.java`（ベース名完全一致）が対応して存在すること（imports も dto/in・dto/out を各1件含む）。【構造判定可】
+5. **固定値 return の禁止**: リテラル（文字列・数値・真偽値・文字、符号付き数値含む）を直接返す
+   `return` を禁止。`return null;` は許可。`constants/`・`validation/` は対象外。
+6. **サイズ制限**: 1ファイル 500 行以内、1メソッド／コンストラクタ 100 行以内（全 `.java` 対象）。
+7. **下位レイヤー依存**: `layer<N>`（N≥2）は下位レイヤー（`layer1`〜`layer<N-1>`）の
+   いずれかを import していること（例: `layer3` は `layer2` か `layer1` を import）。【構造判定可】
+8. **top の import 制限**: `top/*.java` は最大番号のレイヤー（`layer<最大>`）のみ import 可能。
+   それ以外のレイヤーを import するとエラー。【構造判定可】
+9. **util の import 制限**: `util/*.java` は `layer<数値>`・`top`・`repository` パッケージを
+   import 不可（util は下位の汎用ツールであり、上位・連携レイヤーへ依存してはならない）。
+10. **internal の外部到達禁止**: `internal/*.java` は backend 完結（外部接続なし）のエントリ。
+    そのエントリから推移的に辿った import 閉包に `repository` パッケージまたは外部連携パッケージ
+    （拒否リスト）が含まれてはならない。【構造判定可】
+
+---
+
+## レイヤー依存・外部連携ルール
+
+レイヤー番号付きクラス（`layer<N>/*.java`）同士の import 依存グラフを解析する。
+
+11. **飛び越し参照の禁止**: `C → B`（`B` が下位レイヤー）で、間のレイヤー（`B` より上・`C` より下）の
+    クラス `A` が既に `B` を import している場合、`C` は `B` を直接 import できない（`A` を経由する）。
+    ※ `A` が `B` を import していなければ、この規則では制限しない。
+12. **同一レイヤーの依存包含**: 同レイヤーの2クラスで、一方の依存集合がもう一方を包含する場合、
+    包含する側を昇格し、被包含クラスを import して利用する（重複する直接 import を禁止）。
+13. **同一レイヤーの依存重複**: 同レイヤーの2クラスが依存集合を部分的に共有する場合、
+    共通依存を制御する新クラスへ切り出し、両者を昇格して共通依存の直接 import を禁止する。
+14. **レイヤー差の制限**: `X → Y` で `layer(X) - layer(Y) >= 2` の場合、`X` を `layer(Y)+1` へ降格する
+    （基準は下位レイヤー）。【構造判定可】
+15. **外部連携は repository のみ**: DB・外部接続・AWS（Cognito 等）といった外部ツール連携を表す
+    パッケージは、`repository/*.java` でのみ import 可能。それ以外のレイヤーで import するとエラー。
+    （「外部連携」とみなすパッケージ接頭辞は拒否リストで定義。詳細は
+    [docs/java-builder.md](java-builder.md) を参照）【構造判定可（`external` の所在）】
+16. **外部連携へ流れる値の外部化（値フロー検査）**: `repository/*.java` の外部クライアント呼び出し／生成に
+    渡る引数が `constants/` 由来の値であればエラー。接続情報・シークレットは `constants/` ではなく
+    `application.yaml` + 環境変数経由で注入すること。
+    （クロスクラスの参照解決・v1 の追跡範囲の限界は
+    [docs/java-builder.md](java-builder.md) を参照）
+
+---
+
+## 整合性ルール（参照解決）
+
+- R1. `import` 宛先の実在（dangling 参照禁止）: `top` / `layer.*` / `internal.*` / `repository` の
+  各 `imports` が指す `<zone>/<Name>` は、対応するコンポーネントとして実在すること。【構造判定可】

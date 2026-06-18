@@ -1,0 +1,81 @@
+openapi: 3.0.3
+info:
+  title: Example IF Specification
+  version: 1.0.0
+  description: |
+    本ツールが読み込む IF 仕様書（OpenAPI 形式）の例。
+    各 operation の `x-internal` で、そのエンドポイントが外部接続を伴うかを宣言する。
+
+    - x-internal: true  … 外部接続なし（backend 完結）。エントリクラスは app/internal/ に置く。
+                          internal ゾーンは repository / 外部連携パッケージへの（推移的）到達が禁止。
+    - x-internal 省略/false … 外部接続あり（既定）。エントリクラスは app/top/ に置き、
+                              top -> layer -> repository の通常フローで外部連携する。
+
+    operationId はエントリクラス名（PascalCase）にマッピングされる。
+      例: checkHealth -> internal/CheckHealth.java
+          loginAccount -> top/LoginAccount.java
+
+paths:
+  /health:
+    get:
+      operationId: checkHealth
+      summary: ヘルスチェック（外部接続なし）
+      x-internal: true
+      responses:
+        '200':
+          description: サービス稼働中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+  /api/v1/accounts/login:
+    post:
+      operationId: loginAccount
+      summary: ログイン（認証ストアへ外部接続）
+      # x-internal 省略 = 既定 false = 外部接続あり（top -> layer -> repository）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 認証成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: 認証失敗
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+
+    LoginResponse:
+      type: object
+      required: [accessToken]
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int32

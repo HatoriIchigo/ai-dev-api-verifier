@@ -1,0 +1,8 @@
+# main/java（本番コード）で使用を禁止する語（大文字小文字を無視した部分一致）。
+# テストダブル／仮実装（dummy・mock・fake 等）の本番混入を検出する。
+# 1行1語、# 以降はコメント。再ビルドなしで差し替え可能
+# （優先順位: -Dprohibited.words=<path> → カレントの prohibited-words.txt → JAR同梱）。
+dummy
+mock
+fake
+stub

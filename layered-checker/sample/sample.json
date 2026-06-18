@@ -1,0 +1,92 @@
+{
+  "projectName": "sample",
+  "openapi": "examples/openapi.yaml",
+
+  "top": [
+    {
+      "operationId": "loginAccount",
+      "entry": "top/LoginAccount",
+      "path": "/accounts/login",
+      "method": "POST",
+      "description": "ログイン処理（外部接続あり）",
+      "imports": [
+        "layer2/AccountService"
+      ]
+    },
+    {
+      "operationId": "getAccount",
+      "entry": "top/GetAccount",
+      "path": "/accounts/{userId}",
+      "method": "GET",
+      "description": "ユーザ情報取得（外部接続あり）",
+      "imports": [
+        "layer2/AccountService"
+      ]
+    },
+    {
+      "operationId": "checkHealth",
+      "entry": "internal/CheckHealth",
+      "path": "/health",
+      "method": "GET",
+      "description": "ヘルスチェック（backend完結・外部接続なし・repository到達禁止）",
+      "imports": [
+        "internal/HealthChecker"
+      ]
+    }
+  ],
+
+  "layer": {
+    "layer1": [
+      {
+        "name": "AccountStore",
+        "description": "アカウントのデータアクセス層（repository 利用必須）",
+        "imports": [
+          "repository/Account"
+        ]
+      }
+    ],
+    "layer2": [
+      {
+        "name": "AccountService",
+        "description": "アカウント業務ロジック層（下位レイヤー依存必須）",
+        "imports": [
+          "layer1/AccountStore"
+        ]
+      }
+    ]
+  },
+
+  "internal": {
+    "HealthChecker": [
+      {
+        "name": "HealthChecker",
+        "description": "アプリ稼働状態の判定（外部連携・repository に到達しない）"
+      }
+    ]
+  },
+
+  "repository": [
+    {
+      "name": "Account",
+      "description": "アカウントDB連携",
+      "external": {
+        "db": {
+          "schema": "accounts.login"
+        }
+      },
+      "imports": [
+        "dto/in/Account",
+        "dto/out/Account"
+      ]
+    }
+  ],
+
+  "dto": {
+    "in": [
+      "Account"
+    ],
+    "out": [
+      "Account"
+    ]
+  }
+}

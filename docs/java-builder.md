@@ -30,7 +30,7 @@ JSON からは判定できないルールを含む）。
 - `Main` — エントリポイント。引数解釈と終了コード制御。
 - `DirectoryValidator` — プロジェクトルート〜`app/` の階層構成を検証し、各 `app/` に対し下記を実行。
 - `AppStructureValidator` — `app/` 配下の `.java` 配置・`layer` 連番・`dto/in`・`dto/out` 数を検証。
-- `CodeRuleValidator` — JavaParser の AST でコード内容ルール（1〜10）・レイヤー依存・外部連携を検証。
+- `CodeRuleValidator` — JavaParser の AST でコード内容ルール（1〜10、DTO の Lombok 必須=4.1 を含む）・レイヤー依存・外部連携を検証。
 - `OpenApiValidator` — IF 仕様書（OpenAPI）の `x-internal` 宣言と `internal/`・`top/` 配置のゾーン整合を検証（IF 仕様書指定時のみ）。
 - `ProhibitedWordValidator` — `src/main/java` 全体に使用禁止語が含まれないか検証。
 

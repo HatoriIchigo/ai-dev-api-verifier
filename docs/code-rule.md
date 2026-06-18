@@ -83,6 +83,13 @@ src/main/java/com/<projectName>/app/
    （`com.<projectName>.app.repository`）を import していること。【構造判定可】
 4. **repository と DTO の対応**: `repository/Foo.java` には同名の `dto/in/Foo.java` と
    `dto/out/Foo.java`（ベース名完全一致）が対応して存在すること（imports も dto/in・dto/out を各1件含む）。【構造判定可】
+4.1. **DTO は Lombok 必須**: `dto/**` の各クラスは Lombok アノテーション（`@Data` / `@Value` /
+   `@Getter` / `@Setter` / `@Builder` / `@*ArgsConstructor` / `@EqualsAndHashCode` / `@ToString` /
+   `@With` / `@Accessors` のいずれか）を**少なくとも1つ**付与し、かつファイルが `lombok` パッケージを
+   **import** していること（`import lombok.*;` / `import lombok.Data;` のいずれも可）。getter/setter・
+   コンストラクタ等のボイラープレートは手書きせず Lombok に委ねる（推奨は `@Data` / `@Value`）。
+   record / enum / interface は対象外（record は accessor を言語が生成するため）。
+   AST 検査のため `java-builder` のみで判定する。
 5. **固定値 return の禁止**: リテラル（文字列・数値・真偽値・文字、符号付き数値含む）を直接返す
    `return` を禁止。`return null;` は許可。`constants/`・`validation/` は対象外。
 6. **サイズ制限**: 1ファイル 500 行以内、1メソッド／コンストラクタ 100 行以内（全 `.java` 対象）。

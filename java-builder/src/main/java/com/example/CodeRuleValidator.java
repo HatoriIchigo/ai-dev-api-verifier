@@ -7,9 +7,11 @@ import com.github.javaparser.ParserConfiguration.LanguageLevel;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.BooleanLiteralExpr;
 import com.github.javaparser.ast.expr.CharLiteralExpr;
@@ -74,6 +76,7 @@ import java.util.stream.Stream;
  *   <li>{@code layer1/} の各クラスは {@code repository} を import していること。</li>
  *   <li>{@code repository/Foo.java} には {@code dto/in/Foo.java} と {@code dto/out/Foo.java}
  *       （ベース名完全一致）が対応して存在すること。</li>
+ *   <li>（4.1）{@code dto/**} の各クラスは Lombok アノテーション（{@code @Data} 等）を必須とする。</li>
  *   <li>固定値（リテラル）の return を禁止（{@code return null;} は許可）。
  *       {@code constants/}・{@code validation/} は対象外。</li>
  *   <li>1ファイル {@value #MAX_FILE_LINES} 行以内、1メソッド／コンストラクタ {@value #MAX_METHOD_LINES} 行以内。</li>
@@ -99,6 +102,16 @@ public final class CodeRuleValidator {
 
     private static final int MAX_FILE_LINES = 500;
     private static final int MAX_METHOD_LINES = 100;
+
+    /**
+     * DTO（{@code dto/**}）クラスに必須とする Lombok アノテーション（単純名）。
+     * getter/setter・コンストラクタ等のボイラープレートは手書きせず Lombok に委ねる方針で、
+     * 各 DTO クラスに少なくとも1つ付与されていること（推奨は {@code @Data} / {@code @Value}）。
+     */
+    private static final Set<String> DTO_LOMBOK_ANNOTATIONS = Set.of(
+            "Data", "Value", "Getter", "Setter", "Builder", "SuperBuilder",
+            "AllArgsConstructor", "NoArgsConstructor", "RequiredArgsConstructor",
+            "EqualsAndHashCode", "ToString", "With", "Accessors");
 
     /** 外部設定ファイル名（カレントディレクトリ／JAR同梱リソースの両方で使用）。 */
     private static final String EXTERNAL_PACKAGES_FILE = "external-packages.txt";
@@ -263,6 +276,11 @@ public final class CodeRuleValidator {
                 flag(cu, SwitchStmt.class, "switch文", file, dir, violations);
                 flag(cu, SwitchExpr.class, "switch式", file, dir, violations);
                 flag(cu, ConditionalExpr.class, "三項演算子", file, dir, violations);
+            }
+
+            // ルール4.1: DTO は Lombok の利用を必須とする
+            if (isDtoDir(dir)) {
+                violations.addAll(validateDtoLombok(file, cu));
             }
 
             // 外部ツール連携の import は repository/ でのみ許可
@@ -814,9 +832,52 @@ public final class CodeRuleValidator {
     }
 
     private boolean isControlFlowForbidden(String dir) {
-        return dir.equals("dto") || dir.startsWith("dto/")
+        return isDtoDir(dir)
                 || dir.equals("repository")
                 || dir.equals("constants");
+    }
+
+    private boolean isDtoDir(String dir) {
+        return dir.equals("dto") || dir.startsWith("dto/");
+    }
+
+    /**
+     * ルール4.1: dto/ 配下の各クラスは Lombok アノテーション（{@link #DTO_LOMBOK_ANNOTATIONS}）を
+     * 少なくとも1つ付与し、かつファイルは {@code lombok} パッケージを import すること。
+     * record / enum / interface はクラスではないため対象外（record は accessor を言語が生成するため）。
+     */
+    private List<String> validateDtoLombok(Path file, CompilationUnit cu) {
+        List<String> violations = new ArrayList<>();
+
+        List<ClassOrInterfaceDeclaration> dtoClasses = new ArrayList<>();
+        for (TypeDeclaration<?> type : cu.getTypes()) {
+            if (type instanceof ClassOrInterfaceDeclaration cls && !cls.isInterface()) {
+                dtoClasses.add(cls);
+            }
+        }
+        if (dtoClasses.isEmpty()) {
+            // record / enum / interface のみ → 対象外
+            return violations;
+        }
+
+        // ファイルが lombok を import していること（import lombok.*; / import lombok.Data; いずれも可）
+        boolean importsLombok = cu.getImports().stream()
+                .map(ImportDeclaration::getNameAsString)
+                .anyMatch(name -> name.equals("lombok") || name.startsWith("lombok."));
+        if (!importsLombok) {
+            violations.add(rel(file) + " DTO は Lombok を import する必要があります（例: import lombok.Data;）");
+        }
+
+        for (ClassOrInterfaceDeclaration cls : dtoClasses) {
+            boolean hasLombok = cls.getAnnotations().stream()
+                    .map(a -> simpleName(a.getNameAsString()))
+                    .anyMatch(DTO_LOMBOK_ANNOTATIONS::contains);
+            if (!hasLombok) {
+                violations.add(loc(file, cls) + " DTO クラス " + cls.getNameAsString()
+                        + " は Lombok アノテーションの付与が必須です（@Data / @Value 等。手書きの getter/setter は不可）");
+            }
+        }
+        return violations;
     }
 
     private int span(Node node) {

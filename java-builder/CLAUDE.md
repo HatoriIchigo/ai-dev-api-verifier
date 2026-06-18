@@ -46,7 +46,7 @@ AIがコードを生成・変更していく開発スタイルでは、コード
 - `Main` — エントリポイント。引数解釈（第1: 対象プロジェクトルート／第2: IF仕様書パス・任意）と終了コード制御。
 - `DirectoryValidator` — プロジェクトルート〜`app/` の階層構成を検証し、各 `app/` に対して下記クラスを実行。
 - `AppStructureValidator` — `app/` 配下の `.java` 配置・`layer` 連番・`dto/in`・`dto/out` 数を検証。
-- `CodeRuleValidator` — JavaParser の AST を用いてコード内容ルール（内容ルール1〜10・レイヤー依存・外部連携）を検証。
+- `CodeRuleValidator` — JavaParser の AST を用いてコード内容ルール（内容ルール1〜10、DTO の Lombok 必須=4.1 を含む・レイヤー依存・外部連携）を検証。
 - `OpenApiValidator` — IF仕様書（OpenAPI）の `x-internal` 宣言と `internal/`・`top/` 配置のゾーン整合を検証（IF仕様書指定時のみ）。
 - `ProhibitedWordValidator` — `src/main/java` 全体に使用禁止語（dummy/mock/fake 等）が含まれないか検証。
 

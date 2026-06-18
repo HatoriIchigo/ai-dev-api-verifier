@@ -123,6 +123,21 @@ src/main/java/com/<projectName>/app/
    コンストラクタ等のボイラープレートは手書きせず Lombok に委ねる（推奨は `@Data` / `@Value`）。
    record / enum / interface は対象外（record は accessor を言語が生成するため）。
    AST 検査のため `java-builder` のみで判定する。
+4.2. **repository のインメモリ実装の禁止＝外部連携 import 必須（例外なし）**: `repository/*.java` は
+   外部ツール連携（DB・外部接続・AWS 等）を実際に行う層である。AI 生成では実連携を避け、
+   `HashMap` 等の**インメモリの偽データストア**で「それっぽく」通す実装が混入しやすい（ルール 1.1
+   テストダブル禁止・5.1 null 禁止と同種の握りつぶし）。これを防ぐため、`repository/` の各ファイルは
+   外部連携パッケージ（拒否リスト `external-packages.txt`。ルール15と同じ正本）を**最低1つ import**
+   していること。1つも無ければエラー。**ルール15（外部 import は repository でのみ許可）の裏返し**で、
+   「repository 以外では外部連携禁止／repository では外部連携必須」を両面で担保する。
+   想定する連携スタイルは**ファイル単位の直接連携**（各 `repository/Foo.java` が JDBC/SDK/HTTP 等を
+   直接呼ぶ）。import 判定のため `java-builder` のみで実装する（構造判定可だが現状 `layered-checker`
+   は未対応）。
+4.3. **repository のコレクション state フィールド禁止（例外なし）**: `repository/*.java` は外部への
+   パススルーであり、永続状態をプロセス内に溜め込んではならない。コレクション型
+   （`Map` / `List` / `Set` / `Collection` 系および**配列**）を**インスタンス／static フィールド**として
+   保持するとエラー（インメモリ偽データストアの典型症状を直接弾く）。メソッド内のローカル変数・引数は
+   対象外。AST 検査のため `java-builder` のみで判定する。
 5. **固定値 return の禁止**: リテラル（文字列・数値・真偽値・文字、符号付き数値含む）を直接返す
    `return` を禁止。`constants/`・`validation/` は対象外。`return null;` の扱いはルール 5.1 に従う。
 5.1. **null の使用制限（例外なし・全レイヤー）**: `null` リテラルは原則禁止し、次の2つだけ許可する。

@@ -304,6 +304,11 @@ public final class CodeRuleValidator {
                 violations.addAll(validateConstantsDefinitions(file, cu));
             }
 
+            // ルール4.2/4.3: repository はインメモリ実装を禁止（外部連携 import 必須 / コレクション state 禁止）
+            if (dir.equals("repository")) {
+                violations.addAll(validateRepositoryNotInMemory(file, cu));
+            }
+
             // 外部ツール連携の import は repository/ でのみ許可
             if (!dir.equals("repository")) {
                 for (ImportDeclaration imp : cu.getImports()) {
@@ -815,6 +820,59 @@ public final class CodeRuleValidator {
             names.add(simpleName(fqn));
         }
         return String.join(", ", names);
+    }
+
+    /** ルール4.3: repository で state フィールドに持つことを禁止するコレクション型の単純名。 */
+    private static final Set<String> COLLECTION_TYPE_NAMES = Set.of(
+            "Map", "HashMap", "LinkedHashMap", "TreeMap", "ConcurrentHashMap", "ConcurrentMap",
+            "SortedMap", "NavigableMap", "Hashtable", "Properties", "EnumMap", "WeakHashMap", "IdentityHashMap",
+            "List", "ArrayList", "LinkedList", "CopyOnWriteArrayList", "Vector", "Stack",
+            "Set", "HashSet", "LinkedHashSet", "TreeSet", "SortedSet", "NavigableSet", "EnumSet", "CopyOnWriteArraySet",
+            "Collection", "Queue", "Deque", "ArrayDeque", "PriorityQueue", "ConcurrentLinkedQueue");
+
+    /**
+     * ルール4.2 / 4.3: repository がインメモリの偽データストアになっていないか検証する。
+     *
+     * <ul>
+     *   <li>4.2: 外部連携 import（拒否リスト {@code external-packages.txt}）を最低1つ持つこと
+     *       （ルール15の裏返し）。{@code HashMap} 等で完結する実装は外部 import を持たないため弾く。</li>
+     *   <li>4.3: コレクション型（Map/List/Set/Collection 系・配列）を state フィールドとして
+     *       保持しないこと。永続状態をプロセス内に溜め込む＝偽ストアの典型症状を直接弾く。</li>
+     * </ul>
+     */
+    private List<String> validateRepositoryNotInMemory(Path file, CompilationUnit cu) {
+        List<String> violations = new ArrayList<>();
+
+        // 4.2: 外部連携 import 必須（インメモリ実装は外部 import を持たない）
+        if (!hasExternalImport(cu)) {
+            violations.add(rel(file)
+                    + " repository は外部ツール連携（DB/外部接続等）を実装する必要があります"
+                    + "（外部連携パッケージの import が見つかりません）。インメモリ実装ではなく実連携を実装してください");
+        }
+
+        // 4.3: コレクションを state フィールドに持つことを禁止
+        for (FieldDeclaration fd : cu.findAll(FieldDeclaration.class)) {
+            for (VariableDeclarator var : fd.getVariables()) {
+                if (isCollectionStateType(var.getType())) {
+                    violations.add(loc(file, var)
+                            + " repository はコレクション（Map/List/Set/配列）を state フィールドに持てません（"
+                            + var.getNameAsString() + ": " + var.getType().asString()
+                            + "）。インメモリの偽データストアではなく外部連携を実装してください");
+                }
+            }
+        }
+        return violations;
+    }
+
+    /** ルール4.3: repository で禁止するコレクション型（配列、または java.util コレクション系の型名）か判定する。 */
+    private boolean isCollectionStateType(Type type) {
+        if (type.isArrayType()) {
+            return true;
+        }
+        if (type.isClassOrInterfaceType()) {
+            return COLLECTION_TYPE_NAMES.contains(type.asClassOrInterfaceType().getNameAsString());
+        }
+        return false;
     }
 
     /** ルール4: 各 repository に対応する dto/in・dto/out（同名）が存在するか検証する。 */

@@ -204,4 +204,58 @@ class CodeRuleValidatorTest {
             assertTrue(has(v, "リテラルで初期化してください"), () -> v.toString());
         }
     }
+
+    @Nested
+    @DisplayName("ルール4.2/4.3: repository のインメモリ実装禁止")
+    class RepositoryInMemory {
+
+        @Test
+        @DisplayName("4.2: 外部連携 import が無い repository は禁止")
+        void repositoryWithoutExternalImportForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\npublic class Order { void m(){} }\n");
+            assertTrue(has(v, "外部連携パッケージの import が見つかりません"), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("4.2: 外部連携 import がある repository は 4.2 では落ちない")
+        void repositoryWithExternalImportAllowed(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\nimport java.sql.Connection;\n"
+                            + "public class Order { Connection c; }\n");
+            assertFalse(has(v, "外部連携パッケージの import が見つかりません"),
+                    () -> "想定外の 4.2 違反: " + v);
+        }
+
+        @Test
+        @DisplayName("4.3: Map を state フィールドに持つ repository は禁止（インメモリ偽ストア）")
+        void repositoryWithMapFieldForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\nimport java.sql.Connection;\nimport java.util.Map;\n"
+                            + "import java.util.HashMap;\n"
+                            + "public class Order { Connection c; private final Map<Long, Object> store = new HashMap<>(); }\n");
+            assertTrue(has(v, "コレクション（Map/List/Set/配列）を state フィールドに持てません"),
+                    () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("4.3: 配列を state フィールドに持つ repository は禁止")
+        void repositoryWithArrayFieldForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\nimport java.sql.Connection;\n"
+                            + "public class Order { Connection c; private Object[] cache; }\n");
+            assertTrue(has(v, "コレクション（Map/List/Set/配列）を state フィールドに持てません"),
+                    () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("4.3: コレクション以外のフィールドは 4.3 では落ちない")
+        void repositoryWithNonCollectionFieldAllowed(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\nimport java.sql.Connection;\n"
+                            + "public class Order { private final Connection c; }\n");
+            assertFalse(has(v, "コレクション（Map/List/Set/配列）を state フィールドに持てません"),
+                    () -> "想定外の 4.3 違反: " + v);
+        }
+    }
 }

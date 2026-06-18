@@ -13,6 +13,8 @@ import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.expr.AssignExpr;
+import com.github.javaparser.ast.expr.BinaryExpr;
 import com.github.javaparser.ast.expr.BooleanLiteralExpr;
 import com.github.javaparser.ast.expr.CharLiteralExpr;
 import com.github.javaparser.ast.expr.ConditionalExpr;
@@ -23,12 +25,15 @@ import com.github.javaparser.ast.expr.IntegerLiteralExpr;
 import com.github.javaparser.ast.expr.LongLiteralExpr;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.expr.NameExpr;
+import com.github.javaparser.ast.expr.NullLiteralExpr;
 import com.github.javaparser.ast.expr.ObjectCreationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.expr.SwitchExpr;
 import com.github.javaparser.ast.expr.UnaryExpr;
 import com.github.javaparser.ast.type.Type;
+import com.github.javaparser.ast.stmt.CatchClause;
 import com.github.javaparser.ast.stmt.DoStmt;
+import com.github.javaparser.ast.stmt.ExplicitConstructorInvocationStmt;
 import com.github.javaparser.ast.stmt.ForEachStmt;
 import com.github.javaparser.ast.stmt.ForStmt;
 import com.github.javaparser.ast.stmt.IfStmt;
@@ -79,8 +84,10 @@ import java.util.stream.Stream;
  *   <li>{@code repository/Foo.java} には {@code dto/in/Foo.java} と {@code dto/out/Foo.java}
  *       （ベース名完全一致）が対応して存在すること。</li>
  *   <li>（4.1）{@code dto/**} の各クラスは Lombok アノテーション（{@code @Data} 等）を必須とする。</li>
- *   <li>固定値（リテラル）の return を禁止（{@code return null;} は許可）。
- *       {@code constants/}・{@code validation/} は対象外。</li>
+ *   <li>固定値（リテラル）の return を禁止。{@code constants/}・{@code validation/} は対象外。
+ *       （null の扱いは 5.1 に従う）</li>
+ *   <li>（5.1）null の使用制限（全レイヤー）: 許可は {@code ==}/{@code !=} 比較と catch 内 {@code return null;} のみ。
+ *       代入・初期化・引数・catch 外 return 等は禁止。</li>
  *   <li>1ファイル {@value #MAX_FILE_LINES} 行以内、1メソッド／コンストラクタ {@value #MAX_METHOD_LINES} 行以内。</li>
  *   <li>{@code layer<N>}（N≥2）は下位レイヤーのいずれかを import すること。</li>
  *   <li>{@code top/*.java} は最大レイヤーのみ import 可能。</li>
@@ -257,7 +264,10 @@ public final class CodeRuleValidator {
                 }
             }
 
-            // ルール5: 固定値（リテラル）の return 禁止（null は許可）
+            // ルール5.1: null の使用制限（全レイヤー対象。== / != 比較と catch 内 return null のみ許可）
+            violations.addAll(validateNullUsage(file, cu));
+
+            // ルール5: 固定値（リテラル）の return 禁止（null は別途ルール5.1で制限）
             if (!hardcodeExempt) {
                 for (ReturnStmt ret : cu.findAll(ReturnStmt.class)) {
                     Expression expr = ret.getExpression().orElse(null);
@@ -891,6 +901,50 @@ public final class CodeRuleValidator {
                         + " java.util.Random の生成は禁止です。乱数源を注入し、セキュリティ用途は SecureRandom を使ってください"
                         + "（非決定的な実装でのテスト通過・再現性低下を防ぐため）");
             }
+        }
+        return violations;
+    }
+
+    /**
+     * ルール5.1: null リテラルの使用を制限する（全レイヤー対象）。
+     * 許可は「{@code ==} / {@code !=} による null 比較」と「catch ブロック内の {@code return null;}」のみ。
+     * 代入・変数/フィールド初期化・関数/コンストラクタ引数・catch 外の return・その他の文脈は禁止する。
+     * null を撒くと NPE の温床になり、未実装の握りつぶしにも使われるため、不在は Optional / 例外 /
+     * 既定値で表現する。
+     */
+    private List<String> validateNullUsage(Path file, CompilationUnit cu) {
+        List<String> violations = new ArrayList<>();
+        for (NullLiteralExpr nul : cu.findAll(NullLiteralExpr.class)) {
+            Node parent = nul.getParentNode().orElse(null);
+
+            // 許可1: null 比較（== / !=）
+            if (parent instanceof BinaryExpr bin
+                    && (bin.getOperator() == BinaryExpr.Operator.EQUALS
+                            || bin.getOperator() == BinaryExpr.Operator.NOT_EQUALS)) {
+                continue;
+            }
+            // 許可2: catch ブロック内の return null;（catch 外は禁止）
+            if (parent instanceof ReturnStmt) {
+                if (nul.findAncestor(CatchClause.class).isPresent()) {
+                    continue;
+                }
+                violations.add(loc(file, nul)
+                        + " catch 外での return null は禁止です（不在は Optional / 例外 / 既定値で表現してください。catch 内の return null のみ許可）");
+                continue;
+            }
+            // 禁止: 代入 / 初期化 / 引数 / その他
+            String reason;
+            if (parent instanceof AssignExpr) {
+                reason = "null の代入は禁止です";
+            } else if (parent instanceof VariableDeclarator) {
+                reason = "null による変数・フィールドの初期化は禁止です";
+            } else if (parent instanceof MethodCallExpr || parent instanceof ObjectCreationExpr
+                    || parent instanceof ExplicitConstructorInvocationStmt) {
+                reason = "null を引数として渡すことは禁止です";
+            } else {
+                reason = "null の使用は禁止です（許可は ==/!= の比較と catch 内の return null のみ）";
+            }
+            violations.add(loc(file, nul) + " " + reason + "（不在は Optional / 例外 / 既定値で表現してください）");
         }
         return violations;
     }

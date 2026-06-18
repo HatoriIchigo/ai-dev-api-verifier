@@ -15,6 +15,7 @@
         <main.class>com.example.Main</main.class>
         <javaparser.version>3.28.2</javaparser.version>
         <snakeyaml.version>2.3</snakeyaml.version>
+        <junit.version>5.10.2</junit.version>
     </properties>
 
     <dependencies>
@@ -38,11 +39,26 @@
             <artifactId>snakeyaml</artifactId>
             <version>${snakeyaml.version}</version>
         </dependency>
+
+        <!-- テスト（コードルール検証の単体テスト） -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
         <finalName>app</finalName>
         <plugins>
+            <!-- テスト実行（JUnit 5） -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+
             <!-- 実行可能JAR (Main-Classをマニフェストに埋め込む) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

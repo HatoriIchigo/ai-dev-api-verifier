@@ -102,7 +102,15 @@ src/main/java/com/<projectName>/app/
    record / enum / interface は対象外（record は accessor を言語が生成するため）。
    AST 検査のため `java-builder` のみで判定する。
 5. **固定値 return の禁止**: リテラル（文字列・数値・真偽値・文字、符号付き数値含む）を直接返す
-   `return` を禁止。`return null;` は許可。`constants/`・`validation/` は対象外。
+   `return` を禁止。`constants/`・`validation/` は対象外。`return null;` の扱いはルール 5.1 に従う。
+5.1. **null の使用制限（例外なし・全レイヤー）**: `null` リテラルは原則禁止し、次の2つだけ許可する。
+   - `==` / `!=` による null 比較（`if (x == null)`・`while (x != null)` 等、場所を問わず）
+   - **catch ブロック内**の `return null;`
+
+   これ以外（代入 `x = null`、変数・フィールドの初期化 `String s = null;`、関数・コンストラクタ引数
+   `foo(null)` / `new Foo(null)`、catch 外の `return null;`、三項の null 枝など）はすべて禁止。
+   null を撒くと NPE の温床になり未実装の握りつぶしにも使われるため、不在は Optional / 例外 / 既定値で
+   表現する。AST 検査のため `java-builder` のみで判定する。
 6. **サイズ制限**: 1ファイル 500 行以内、1メソッド／コンストラクタ 100 行以内（全 `.java` 対象）。
 7. **下位レイヤー依存**: `layer<N>`（N≥2）は下位レイヤー（`layer1`〜`layer<N-1>`）の
    いずれかを import していること（例: `layer3` は `layer2` か `layer1` を import）。【構造判定可】

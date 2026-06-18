@@ -206,6 +206,65 @@ class CodeRuleValidatorTest {
     }
 
     @Nested
+    @DisplayName("ルール7.1: データソース到達の必須化（呼び出しレベル）")
+    class LayerReachesDataSource {
+
+        private static final String NEEDLE = "データソースに到達せず DTO を返しています";
+
+        @Test
+        @DisplayName("layer1: repository を呼ばず DTO を返す公開メソッドは違反")
+        void layer1WithoutRepositoryCallForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "layer1/S.java",
+                    "package com.demo.app.layer1;\nimport com.demo.app.repository.OrderRepo;\n"
+                            + "import com.demo.app.dto.out.OrderOut;\n"
+                            + "public class S { public OrderOut get(){ return new OrderOut(); } }\n");
+            assertTrue(has(v, NEEDLE), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("layer1: repository を呼べば違反なし")
+        void layer1WithRepositoryCallAllowed(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "layer1/S.java",
+                    "package com.demo.app.layer1;\nimport com.demo.app.repository.OrderRepo;\n"
+                            + "import com.demo.app.dto.out.OrderOut;\n"
+                            + "public class S { public OrderOut get(OrderRepo repo){ return repo.find(); } }\n");
+            assertFalse(has(v, NEEDLE), () -> "想定外の違反: " + v);
+        }
+
+        @Test
+        @DisplayName("layer1: 委譲先（内部ヘルパ）が repository を呼べば違反なし")
+        void layer1DelegationAllowed(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "layer1/S.java",
+                    "package com.demo.app.layer1;\nimport com.demo.app.repository.OrderRepo;\n"
+                            + "import com.demo.app.dto.out.OrderOut;\n"
+                            + "public class S {\n"
+                            + "  public OrderOut get(OrderRepo repo){ return load(repo); }\n"
+                            + "  private OrderOut load(OrderRepo repo){ return repo.find(); }\n}\n");
+            assertFalse(has(v, NEEDLE), () -> "委譲が誤検知: " + v);
+        }
+
+        @Test
+        @DisplayName("layer2: 下位レイヤーを呼ばず DTO を返す公開メソッドは違反")
+        void layer2WithoutLowerCallForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "layer2/S.java",
+                    "package com.demo.app.layer2;\nimport com.demo.app.layer1.OrderService;\n"
+                            + "import com.demo.app.dto.out.OrderOut;\n"
+                            + "public class S { public OrderOut get(){ return new OrderOut(); } }\n");
+            assertTrue(has(v, NEEDLE), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("layer2: 下位レイヤーを呼べば違反なし")
+        void layer2WithLowerCallAllowed(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "layer2/S.java",
+                    "package com.demo.app.layer2;\nimport com.demo.app.layer1.OrderService;\n"
+                            + "import com.demo.app.dto.out.OrderOut;\n"
+                            + "public class S { public OrderOut get(OrderService s){ return s.get(); } }\n");
+            assertFalse(has(v, NEEDLE), () -> "想定外の違反: " + v);
+        }
+    }
+
+    @Nested
     @DisplayName("ルール4.2/4.3: repository のインメモリ実装禁止")
     class RepositoryInMemory {
 

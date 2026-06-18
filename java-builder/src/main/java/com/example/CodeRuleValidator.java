@@ -347,6 +347,10 @@ public final class CodeRuleValidator {
                     violations.add(rel(file) + " layer" + n + " は下位レイヤー（layer1〜layer" + (n - 1)
                             + "）のいずれかを import する必要があります");
                 }
+
+                // ルール7.1: データソース到達の呼び出しレベル検査（DTO を返す公開メソッドは
+                // repository/下位レイヤーに到達せず return してはならない）
+                violations.addAll(validateLayerReachesDataSource(file, cu, n));
             }
 
             // top/*.java は最大レイヤーのみ import 可能
@@ -640,6 +644,138 @@ public final class CodeRuleValidator {
             }
         }
         return new ArrayList<>(violations);
+    }
+
+    /**
+     * ルール7.1（ルール3/7 の呼び出しレベル強化）: layer がデータソース（layer1=repository、
+     * layerN(N&ge;2)=下位レイヤー）に到達せず DTO を返す（=データソースに降りる前に return する）のを禁止する。
+     *
+     * <p>対象は「戻り値型が {@code dto/**} で、クラス内の他メソッドから呼ばれていない public メソッド」
+     * （=上位から呼ばれるエントリ）。これらは本体内、または同一クラス内の委譲チェーン経由で、データソースの
+     * メソッド呼び出しに到達しなければならない。内部ヘルパ／純変換メソッド（クラス内から呼ばれているもの）は
+     * 対象外として誤検知を抑える。
+     *
+     * <p>import レベルでデータソースが無い場合は、ルール3（layer1）／ルール7（layerN）が別途報告するため、
+     * 本検査は何もしない（重複報告の回避）。クロスクラスの完全な制御フロー解析は行わない（既知の限界）。
+     */
+    private List<String> validateLayerReachesDataSource(Path file, CompilationUnit cu, int n) {
+        Set<String> sourceTypes = layerSourceSimpleTypeNames(cu, n);
+        if (sourceTypes.isEmpty()) {
+            return List.of();
+        }
+        Set<String> dtoTypes = dtoSimpleTypeNames(cu);
+        if (dtoTypes.isEmpty()) {
+            return List.of();
+        }
+        Map<String, String> declaredTypes = declaredTypeSimpleNames(cu);
+
+        List<MethodDeclaration> methods = cu.findAll(MethodDeclaration.class).stream()
+                .filter(m -> m.getBody().isPresent())
+                .toList();
+
+        // 各メソッドの「直接到達」フラグと、同一クラス内で呼ぶメソッド名（委譲）を収集する。
+        Map<MethodDeclaration, Boolean> directReaches = new HashMap<>();
+        Map<MethodDeclaration, Set<String>> internalCalls = new HashMap<>();
+        Set<String> calledInternally = new HashSet<>();
+        for (MethodDeclaration m : methods) {
+            boolean direct = false;
+            Set<String> siblings = new HashSet<>();
+            for (MethodCallExpr call : m.findAll(MethodCallExpr.class)) {
+                if (isExternalSink(call, sourceTypes, declaredTypes)) {
+                    direct = true;
+                }
+                Optional<Expression> sc = call.getScope();
+                if (sc.isEmpty() || sc.get().isThisExpr()) {
+                    siblings.add(call.getNameAsString());
+                    calledInternally.add(call.getNameAsString());
+                }
+            }
+            directReaches.put(m, direct);
+            internalCalls.put(m, siblings);
+        }
+
+        // メソッド名単位で到達可能性を不動点計算（同一クラス内委譲チェーンを辿る。overload は名前で合算）。
+        Map<String, Boolean> reaches = new HashMap<>();
+        for (MethodDeclaration m : methods) {
+            boolean direct = Boolean.TRUE.equals(directReaches.get(m));
+            reaches.merge(m.getNameAsString(), direct, (a, b) -> a || b);
+        }
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (MethodDeclaration m : methods) {
+                String name = m.getNameAsString();
+                if (Boolean.TRUE.equals(reaches.get(name))) {
+                    continue;
+                }
+                for (String callee : internalCalls.get(m)) {
+                    if (Boolean.TRUE.equals(reaches.get(callee))) {
+                        reaches.put(name, true);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        List<String> violations = new ArrayList<>();
+        String sourceLabel = (n == 1) ? "repository" : "下位レイヤー";
+        for (MethodDeclaration m : methods) {
+            if (!m.isPublic() || !dtoTypes.contains(simpleTypeName(m.getType()))) {
+                continue;
+            }
+            // 内部ヘルパ（クラス内の他メソッドから呼ばれている）は上位エントリではないため対象外。
+            if (calledInternally.contains(m.getNameAsString())) {
+                continue;
+            }
+            if (!Boolean.TRUE.equals(reaches.get(m.getNameAsString()))) {
+                violations.add(loc(file, m) + " layer" + n + " の公開メソッド " + m.getNameAsString()
+                        + "（戻り値 " + simpleTypeName(m.getType()) + "）が " + sourceLabel
+                        + " を呼び出していません（データソースに到達せず DTO を返しています）");
+            }
+        }
+        return violations;
+    }
+
+    /**
+     * layer のデータソース型の単純名集合を返す。
+     * layer1 は repository パッケージのクラス、layerN(N&ge;2) は自分より下位の layer のクラス（import 経由）。
+     */
+    private Set<String> layerSourceSimpleTypeNames(CompilationUnit cu, int n) {
+        Set<String> names = new HashSet<>();
+        for (ImportDeclaration imp : cu.getImports()) {
+            if (imp.isAsterisk()) {
+                continue;
+            }
+            String name = imp.getNameAsString();
+            if (n == 1) {
+                if (name.startsWith(repositoryPackage + ".")) {
+                    names.add(simpleName(name));
+                }
+            } else {
+                OptionalInt imported = layerOfImport(name);
+                if (imported.isPresent() && imported.getAsInt() < n) {
+                    names.add(simpleName(name));
+                }
+            }
+        }
+        return names;
+    }
+
+    /** CU の import のうち {@code dto/**}（dto.in / dto.out）に該当するものの単純クラス名集合。 */
+    private Set<String> dtoSimpleTypeNames(CompilationUnit cu) {
+        String dtoPackage = basePackage + ".dto";
+        Set<String> names = new HashSet<>();
+        for (ImportDeclaration imp : cu.getImports()) {
+            if (imp.isAsterisk()) {
+                continue;
+            }
+            String name = imp.getNameAsString();
+            if (name.startsWith(dtoPackage + ".")) {
+                names.add(simpleName(name));
+            }
+        }
+        return names;
     }
 
     /** CU の import のうち外部連携パッケージに該当するものの単純クラス名集合（ワイルドカードは対象外）。 */

@@ -206,6 +206,53 @@ class CodeRuleValidatorTest {
     }
 
     @Nested
+    @DisplayName("ルール4(imports): repository は dto/in・dto/out を各1件 import")
+    class RepositoryDtoImports {
+
+        @Test
+        @DisplayName("dto/in の import が無ければ違反")
+        void missingDtoInImportForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\nimport java.sql.Connection;\n"
+                            + "import com.demo.app.dto.out.Order;\n"
+                            + "public class Order { Connection c; }\n");
+            assertTrue(has(v, "対応する dto/in/Order を import する必要があります"), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("対応ベース名（Order）と異なる dto/out import は違反")
+        void wrongBaseNameDtoOutForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\nimport java.sql.Connection;\n"
+                            + "import com.demo.app.dto.in.Order;\nimport com.demo.app.dto.out.Other;\n"
+                            + "public class Order { Connection c; }\n");
+            assertTrue(has(v, "対応する dto/out/Order を import する必要があります"), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("dto/in が2件以上あれば違反（各1件）")
+        void multipleDtoInImportsForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\nimport java.sql.Connection;\n"
+                            + "import com.demo.app.dto.in.Order;\nimport com.demo.app.dto.in.Extra;\n"
+                            + "import com.demo.app.dto.out.Order;\n"
+                            + "public class Order { Connection c; }\n");
+            assertTrue(has(v, "dto/in import は1件のみ許可されます"), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("対応する dto/in/Order・dto/out/Order を各1件 import すれば違反なし")
+        void correspondingPairAllowed(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "repository/Order.java",
+                    "package com.demo.app.repository;\nimport java.sql.Connection;\n"
+                            + "import com.demo.app.dto.in.Order;\nimport com.demo.app.dto.out.Order;\n"
+                            + "public class Order { Connection c; }\n");
+            assertFalse(has(v, "を import する必要があります"), () -> "import 不足の誤検知: " + v);
+            assertFalse(has(v, "import は1件のみ許可されます"), () -> "件数の誤検知: " + v);
+        }
+    }
+
+    @Nested
     @DisplayName("ルール7.1: データソース到達の必須化（呼び出しレベル）")
     class LayerReachesDataSource {
 

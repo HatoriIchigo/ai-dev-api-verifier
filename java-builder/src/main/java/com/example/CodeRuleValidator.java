@@ -307,6 +307,8 @@ public final class CodeRuleValidator {
             // ルール4.2/4.3: repository はインメモリ実装を禁止（外部連携 import 必須 / コレクション state 禁止）
             if (dir.equals("repository")) {
                 violations.addAll(validateRepositoryNotInMemory(file, cu));
+                // ルール4（imports）: 対応する dto/in・dto/out を各1件 import すること
+                violations.addAll(validateRepositoryDtoImports(file, cu));
             }
 
             // 外部ツール連携の import は repository/ でのみ許可
@@ -1035,6 +1037,62 @@ public final class CodeRuleValidator {
             if (!dtoOut.contains(base)) {
                 violations.add("repository/" + base + ".java に対応する dto/out/" + base + ".java がありません");
             }
+        }
+        return violations;
+    }
+
+    /**
+     * ルール4（imports）: {@code repository/Foo.java} は対応する {@code dto/in/Foo}・{@code dto/out/Foo} を
+     * それぞれ<b>ちょうど1件</b> import すること。ファイル存在（{@link #validateRepositoryDtoPairs}）だけでは
+     * 「同名 DTO が存在するが repository が実際には使っていない」状態を許してしまうため、import で実利用を担保する。
+     *
+     * <p><b>既知の限界</b>: ワイルドカード import（{@code import <base>.dto.in.*;}）はベース名・件数を特定
+     * できないため、その側の検査をスキップする（誤検知回避。明示 import を推奨）。
+     */
+    private List<String> validateRepositoryDtoImports(Path file, CompilationUnit cu) {
+        String base = baseName(file);
+        String dtoInPkg = basePackage + ".dto.in";
+        String dtoOutPkg = basePackage + ".dto.out";
+
+        List<String> inImports = new ArrayList<>();
+        List<String> outImports = new ArrayList<>();
+        boolean inWildcard = false;
+        boolean outWildcard = false;
+        for (ImportDeclaration imp : cu.getImports()) {
+            String name = imp.getNameAsString();
+            if (imp.isAsterisk()) {
+                inWildcard |= name.equals(dtoInPkg);
+                outWildcard |= name.equals(dtoOutPkg);
+                continue;
+            }
+            if (name.startsWith(dtoInPkg + ".")) {
+                inImports.add(simpleName(name));
+            } else if (name.startsWith(dtoOutPkg + ".")) {
+                outImports.add(simpleName(name));
+            }
+        }
+
+        List<String> violations = new ArrayList<>();
+        violations.addAll(checkRepositoryDtoSide(file, base, "dto/in", inImports, inWildcard));
+        violations.addAll(checkRepositoryDtoSide(file, base, "dto/out", outImports, outWildcard));
+        return violations;
+    }
+
+    /** ルール4（imports）: 片側（dto/in もしくは dto/out）について、対応ベース名をちょうど1件 import するか検証する。 */
+    private List<String> checkRepositoryDtoSide(Path file, String base, String side,
+                                                List<String> imports, boolean wildcard) {
+        if (wildcard) {
+            return List.of();
+        }
+        List<String> violations = new ArrayList<>();
+        if (!imports.contains(base)) {
+            violations.add(rel(file) + " repository は対応する " + side + "/" + base
+                    + " を import する必要があります（" + basePackage + "." + side.replace('/', '.')
+                    + "." + base + " が見つかりません）");
+        }
+        if (imports.size() > 1) {
+            violations.add(rel(file) + " repository の " + side + " import は1件のみ許可されます（検出: "
+                    + String.join(", ", imports) + "）");
         }
         return violations;
     }

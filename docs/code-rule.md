@@ -115,7 +115,11 @@ src/main/java/com/<projectName>/app/
 3. **layer1 は repository 利用必須**: `layer1/` の各クラスは repository パッケージ
    （`com.<projectName>.app.repository`）を import していること。【構造判定可】
 4. **repository と DTO の対応**: `repository/Foo.java` には同名の `dto/in/Foo.java` と
-   `dto/out/Foo.java`（ベース名完全一致）が対応して存在すること（imports も dto/in・dto/out を各1件含む）。【構造判定可】
+   `dto/out/Foo.java`（ベース名完全一致）が対応して存在すること。さらに **`repository/Foo.java` の imports は
+   対応する `dto/in/Foo` と `dto/out/Foo` をそれぞれ「ちょうど1件」含む**こと（ファイル存在だけでなく実利用を
+   import で担保する）。dto/in もしくは dto/out の import が無い／対応ベース名でない／2件以上ある場合はエラー。
+   ワイルドカード import（`import <base>.dto.in.*;`）はベース名・件数を特定できないためその側はスキップする
+   （誤検知回避。明示 import 推奨）。【構造判定可】
 4.1. **DTO は Lombok 必須**: `dto/**` の各クラスは Lombok アノテーション（`@Data` / `@Value` /
    `@Getter` / `@Setter` / `@Builder` / `@*ArgsConstructor` / `@EqualsAndHashCode` / `@ToString` /
    `@With` / `@Accessors` のいずれか）を**少なくとも1つ**付与し、かつファイルが `lombok` パッケージを

@@ -82,6 +82,34 @@ public final class OpenApiValidator {
         return violations;
     }
 
+    /**
+     * IF仕様書（OpenAPI）の {@code paths} に定義されたエンドポイント文字列（{@code /accounts/login} 等）の
+     * 一覧を返す。{@code paths} が無い／解析できない場合は空リスト。統合テストのエンドポイント網羅検査
+     * （{@link IntegrationTestValidator}）から利用する。
+     */
+    @SuppressWarnings("unchecked")
+    public static List<String> loadEndpointPaths(Path openApiFile) throws IOException {
+        List<String> result = new ArrayList<>();
+        Object loaded;
+        Yaml yaml = new Yaml();
+        try (InputStream in = Files.newInputStream(openApiFile)) {
+            loaded = yaml.load(in);
+        }
+        if (!(loaded instanceof Map)) {
+            return result;
+        }
+        Object pathsObj = ((Map<String, Object>) loaded).get("paths");
+        if (!(pathsObj instanceof Map)) {
+            return result;
+        }
+        for (Object key : ((Map<String, Object>) pathsObj).keySet()) {
+            if (key instanceof String s && !s.isEmpty()) {
+                result.add(s);
+            }
+        }
+        return result;
+    }
+
     /** 宣言ゾーンにエントリクラスが存在し、逆ゾーンには存在しないことを検証する。 */
     private List<String> verifyZone(String operationId, boolean external) {
         List<String> violations = new ArrayList<>();

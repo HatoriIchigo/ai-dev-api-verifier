@@ -88,6 +88,28 @@ src/main/java/com/<projectName>/app/
    セキュリティ用途の乱数は `SecureRandom` を使うこと（**本ルールの対象外**）。
    AST 検査のため `java-builder` のみで判定する。
 
+1.3. **constants の定数定義制約（例外なし）**: `constants/*.java` は環境非依存の固定値だけを
+   素朴な定数として公開する。動的に組み立てた値や DTO への依存を持ち込まない。次をすべて満たすこと:
+   - (a) **DTO の import 禁止**: `com.<projectName>.app.dto`（`dto.in` / `dto.out` を含む）を
+     import してはならない。定数は DTO に依存しない（依存方向は DTO → constants ではなく逆も不可）。
+   - (b) **`public static final` 必須**: フィールドはすべて `public static final` で宣言する。
+     `public` / `static` / `final` のいずれかを欠くフィールドがあればエラー。
+   - (c) **型は String とプリミティブのみ**: `String` と 8 プリミティブ
+     （`int` / `long` / `short` / `byte` / `char` / `boolean` / `float` / `double`）のみ許可。
+     `List` / `Map` / 配列 / その他オブジェクト型はエラー。
+   - (d) **初期化子はリテラルのみ**: メソッド呼び出し（`List.of(..)` / `Arrays.asList(..)` 等）や
+     `new ...()` による生成での初期化は禁止。リテラル（リテラル同士の連結 `"a" + "b"` を含む）と
+     他定数の参照（同クラス／別 constants クラスのフィールド参照）のみ許可。
+
+   AST 検査のため `java-builder` のみで判定する。
+
+1.4. **`localhost` のハードコード禁止（例外なし・main/test 全体）**: すべての `.java`
+   （`src/main/java`・`src/test/java` の双方）で文字列 `localhost`（大文字小文字無視の部分一致。
+   コメント・識別子・文字列リテラル等ソーステキスト全体が対象）を使用禁止。接続先（ホスト）は環境依存の
+   設定値であり、`application.yaml` + 環境変数経由で注入すること。テストダブル禁止語（ルール1.1）が
+   `main` 限定なのに対し、本ルールは **test も含む全 `.java`** を対象とする。テキスト走査で判定し、
+   `java-builder` のみで検査する。
+
 2. **処理の禁止**: `dto/**/*.java`・`repository/*.java`・`constants/*.java` では条件・繰り返し処理
    （`if` / `for` / 拡張 `for` / `while` / `do-while` / `switch` 文・式 / 三項演算子）を禁止。
 3. **layer1 は repository 利用必須**: `layer1/` の各クラスは repository パッケージ
@@ -146,6 +168,22 @@ src/main/java/com/<projectName>/app/
     `application.yaml` + 環境変数経由で注入すること。
     （クロスクラスの参照解決・v1 の追跡範囲の限界は
     [docs/java-builder.md](java-builder.md) を参照）
+
+---
+
+## テスト構成ルール（java-builder のみ）
+
+統合テストの存在と、IF 仕様書（OpenAPI）エンドポイントの網羅を検証する。test ツリーが対象のため
+`java-builder` のみで判定する（`layered-checker` は設計 JSON のみを見るため対象外）。
+
+17. **統合テストの必須化（常に検査）**: 各プロジェクトは `src/test/java/com/<projectName>/integration/`
+    を持ち、配下に `.java` ファイルが1つ以上存在すること。ディレクトリが無い／`.java` が無ければエラー。
+    OpenAPI 未指定でも必須。
+18. **エンドポイントのハードコード網羅（OpenAPI 指定時のみ）**: IF 仕様書（OpenAPI）が指定された場合、
+    `paths` の各エンドポイント文字列（例 `/accounts/login`）が `integration/` 配下のいずれかの `.java` に
+    **リテラルとして現れる**こと。現れないエンドポイントがあればエラー。
+    - 照合は path 文字列の**そのまま部分一致**。パスパラメータを含む path（例 `/users/{id}`）は
+      テンプレートのまま照合するため、テスト側が具体値（`/users/123`）で書くと網羅とみなされない（既知の限界）。
 
 ---
 

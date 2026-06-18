@@ -154,4 +154,54 @@ class CodeRuleValidatorTest {
             assertFalse(has(v, "Lombok"), () -> "想定外の Lombok 違反: " + v);
         }
     }
+
+    @Nested
+    @DisplayName("ルール1.3: constants の定数定義制約")
+    class ConstantsDefinitions {
+
+        @Test
+        @DisplayName("public static final な String/プリミティブ・リテラル初期化は許可")
+        void validConstantsAllowed(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "constants/C.java",
+                    "package com.demo.app.constants;\npublic class C {\n"
+                            + "  public static final String NAME = \"x\";\n"
+                            + "  public static final int MAX = 10;\n"
+                            + "  public static final String COMBO = \"a\" + \"b\";\n"
+                            + "}\n");
+            assertFalse(has(v, "constants/"), () -> "想定外の constants 違反: " + v);
+        }
+
+        @Test
+        @DisplayName("(a) DTO の import は禁止")
+        void dtoImportForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "constants/C.java",
+                    "package com.demo.app.constants;\nimport com.demo.app.dto.in.Order;\n"
+                            + "public class C { public static final String NAME = \"x\"; }\n");
+            assertTrue(has(v, "DTO を import できません"), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("(b) public static final を欠くフィールドは禁止")
+        void nonStaticFinalForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "constants/C.java",
+                    "package com.demo.app.constants;\npublic class C { public final String NAME = \"x\"; }\n");
+            assertTrue(has(v, "public static final で宣言してください"), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("(c) String/プリミティブ以外の型は禁止")
+        void nonBasicTypeForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "constants/C.java",
+                    "package com.demo.app.constants;\npublic class C { public static final Object O = \"x\"; }\n");
+            assertTrue(has(v, "String またはプリミティブ型のみ許可"), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("(d) メソッド呼び出しによる初期化は禁止")
+        void methodCallInitializerForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "constants/C.java",
+                    "package com.demo.app.constants;\npublic class C { public static final String S = String.valueOf(1); }\n");
+            assertTrue(has(v, "リテラルで初期化してください"), () -> v.toString());
+        }
+    }
 }

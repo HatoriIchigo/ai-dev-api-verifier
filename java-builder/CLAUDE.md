@@ -47,8 +47,10 @@ AIがコードを生成・変更していく開発スタイルでは、コード
 - `DirectoryValidator` — プロジェクトルート〜`app/` の階層構成を検証し、各 `app/` に対して下記クラスを実行。
 - `AppStructureValidator` — `app/` 配下の `.java` 配置・`layer` 連番・`dto/in`・`dto/out` 数を検証。
 - `CodeRuleValidator` — JavaParser の AST を用いてコード内容ルール（内容ルール1〜10、DTO の Lombok 必須=4.1 を含む・レイヤー依存・外部連携）を検証。
-- `OpenApiValidator` — IF仕様書（OpenAPI）の `x-internal` 宣言と `internal/`・`top/` 配置のゾーン整合を検証（IF仕様書指定時のみ）。
+- `OpenApiValidator` — IF仕様書（OpenAPI）の `x-internal` 宣言と `internal/`・`top/` 配置のゾーン整合を検証（IF仕様書指定時のみ）。`paths` のエンドポイント一覧抽出（ルール18）も担う。
 - `ProhibitedWordValidator` — `src/main/java` 全体に使用禁止語（dummy/mock/fake 等）が含まれないか検証。
+- `LocalhostValidator` — `src/main/java`・`src/test/java` 全体に `localhost` のハードコードが無いか検証（ルール1.4）。
+- `IntegrationTestValidator` — `src/test/java/com/<projectName>/integration/` の存在・`.java` 有無（ルール17）と、OpenAPI エンドポイントのハードコード網羅（ルール18）を検証。
 
 ## 技術構成
 
@@ -83,8 +85,10 @@ java-builder/
         │       ├── DirectoryValidator.java    # ルート〜app/ の階層構成検証
         │       ├── AppStructureValidator.java # app/配下の配置・layer連番・dto数検証
         │       ├── CodeRuleValidator.java     # AST（JavaParser）によるコード内容検証
-        │       ├── OpenApiValidator.java      # IF仕様書(OpenAPI)とのゾーン整合検証
-        │       └── ProhibitedWordValidator.java # src/main/java 全体の使用禁止語検査
+        │       ├── OpenApiValidator.java      # IF仕様書(OpenAPI)とのゾーン整合検証・エンドポイント抽出
+        │       ├── ProhibitedWordValidator.java # src/main/java 全体の使用禁止語検査
+        │       ├── LocalhostValidator.java    # main/test 全体の localhost ハードコード禁止
+        │       └── IntegrationTestValidator.java # 統合テスト構成・OpenAPIエンドポイント網羅検証
         └── resources/
             ├── external-packages.txt          # 外部連携パッケージの拒否リスト（既定値）
             ├── secret-keywords.txt            # 外部化すべき値の識別子キーワード（既定値）

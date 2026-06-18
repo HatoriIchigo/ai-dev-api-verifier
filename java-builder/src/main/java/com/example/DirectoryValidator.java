@@ -62,6 +62,14 @@ public final class DirectoryValidator {
         // 使用禁止語（dummy/mock/fake 等）の検査: src/main/java 全体が対象。
         violations.addAll(new ProhibitedWordValidator(root).validate());
 
+        // ルール1.4: localhost のハードコード禁止（src/main/java・src/test/java 双方が対象）。
+        violations.addAll(new LocalhostValidator(root).validate());
+
+        // ルール18: IF仕様書（OpenAPI）が指定されていれば、統合テストのエンドポイント網羅検査に使う path 一覧を読み込む。
+        List<String> endpointPaths = openApiFile != null
+                ? OpenApiValidator.loadEndpointPaths(openApiFile)
+                : List.of();
+
         Path com = root.resolve("src").resolve("main").resolve("java").resolve("com");
         if (!Files.isDirectory(com)) {
             violations.add("必須ディレクトリが存在しません: src/main/java/com");
@@ -103,6 +111,10 @@ public final class DirectoryValidator {
                     violations.add(prefix + violation);
                 }
             }
+
+            // ルール17・18: 統合テストの構成（常に必須）とエンドポイント網羅（OpenAPI 指定時のみ）。
+            // 対象は test ツリー（src/test/java/com/<name>/integration）のため app プレフィックスは付けない。
+            violations.addAll(new IntegrationTestValidator(root, name, endpointPaths).validate());
         }
 
         if (validProjects.isEmpty() && violations.isEmpty()) {

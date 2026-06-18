@@ -25,7 +25,9 @@ JSON からは判定できないルールを含む）。
 - **引数**: 第1引数＝検証対象プロジェクトのルート（省略時カレント）、第2引数＝IF 仕様書パス（任意）。
 - **終了コード**: 正常 0 / 違反 1 / I/O エラー 2。違反は標準エラー出力に内容を出す。
 - **ユニットテスト**: `src/test/java`（JUnit 5）。`mvn test` / `mvn package` で実行され、コードルール
-  （`CodeRuleValidatorTest`: 1.2 乱数・ID 生成禁止 / 4.1 DTO Lombok / 5.1 null 制限 など）の発火を検証する。
+  （`CodeRuleValidatorTest`: 1.2 乱数・ID 生成禁止 / 1.3 constants 定数定義制約 / 4.1 DTO Lombok /
+  5.1 null 制限 など、`LocalhostValidatorTest`: 1.4 localhost 禁止、`IntegrationTestValidatorTest`:
+  17/18 統合テスト構成・エンドポイント網羅）の発火を検証する。
   各テストは検証対象の `.java` を一時ディレクトリに1ファイル書き出し、対象ルール固有のメッセージで照合する
   （1テスト＝1つの失敗要因）。
 
@@ -35,8 +37,10 @@ JSON からは判定できないルールを含む）。
 - `DirectoryValidator` — プロジェクトルート〜`app/` の階層構成を検証し、各 `app/` に対し下記を実行。
 - `AppStructureValidator` — `app/` 配下の `.java` 配置・`layer` 連番・`dto/in`・`dto/out` 数を検証。
 - `CodeRuleValidator` — JavaParser の AST でコード内容ルール（1〜10、DTO の Lombok 必須=4.1 を含む）・レイヤー依存・外部連携を検証。
-- `OpenApiValidator` — IF 仕様書（OpenAPI）の `x-internal` 宣言と `internal/`・`top/` 配置のゾーン整合を検証（IF 仕様書指定時のみ）。
+- `OpenApiValidator` — IF 仕様書（OpenAPI）の `x-internal` 宣言と `internal/`・`top/` 配置のゾーン整合を検証（IF 仕様書指定時のみ）。`paths` のエンドポイント一覧抽出（ルール18 用）も担う。
 - `ProhibitedWordValidator` — `src/main/java` 全体に使用禁止語が含まれないか検証。
+- `LocalhostValidator` — `src/main/java`・`src/test/java` 全体に `localhost` のハードコードが無いか検証（ルール1.4）。
+- `IntegrationTestValidator` — `src/test/java/com/<projectName>/integration/` の存在・`.java` 有無（ルール17）と、OpenAPI エンドポイントのハードコード網羅（ルール18）を検証。
 
 ## ルール実装の補足（[code-rule.md](code-rule.md) の検出詳細）
 

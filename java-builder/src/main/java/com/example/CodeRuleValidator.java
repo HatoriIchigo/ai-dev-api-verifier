@@ -9,6 +9,7 @@ import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.ConstructorDeclaration;
+import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.Parameter;
 import com.github.javaparser.ast.body.TypeDeclaration;
@@ -296,6 +297,11 @@ public final class CodeRuleValidator {
             // ルール4.1: DTO は Lombok の利用を必須とする
             if (isDtoDir(dir)) {
                 violations.addAll(validateDtoLombok(file, cu));
+            }
+
+            // ルール1.3: constants の定数定義制約（DTO import 禁止 / public static final / String・プリミティブ / リテラル初期化）
+            if (dir.equals("constants")) {
+                violations.addAll(validateConstantsDefinitions(file, cu));
             }
 
             // 外部ツール連携の import は repository/ でのみ許可
@@ -993,6 +999,71 @@ public final class CodeRuleValidator {
             }
         }
         return violations;
+    }
+
+    /**
+     * ルール1.3: {@code constants/} の定数定義制約。環境非依存の固定値だけを素朴な定数として公開させる。
+     * <ul>
+     *   <li>(a) DTO（{@code <basePackage>.dto..}）の import 禁止。</li>
+     *   <li>(b) フィールドは {@code public static final} 必須。</li>
+     *   <li>(c) 型は {@code String} と 8 プリミティブのみ許可（List/Map/配列/その他オブジェクトは不可）。</li>
+     *   <li>(d) 初期化子はリテラル（リテラル連結・他定数参照を含む）のみ。
+     *       メソッド呼び出し（{@code List.of(..)} 等）/ {@code new} 生成は禁止。</li>
+     * </ul>
+     */
+    private List<String> validateConstantsDefinitions(Path file, CompilationUnit cu) {
+        List<String> violations = new ArrayList<>();
+        String dtoPackage = basePackage + ".dto";
+
+        // (a) DTO の import 禁止（dto / dto.in / dto.out のいずれも）
+        for (ImportDeclaration imp : cu.getImports()) {
+            String name = imp.getNameAsString();
+            if (name.equals(dtoPackage) || name.startsWith(dtoPackage + ".")) {
+                violations.add(loc(file, imp)
+                        + " constants/ は DTO を import できません（定数は DTO に依存しない）: " + name);
+            }
+        }
+
+        for (FieldDeclaration fd : cu.findAll(FieldDeclaration.class)) {
+            String names = String.join(", ",
+                    fd.getVariables().stream().map(VariableDeclarator::getNameAsString).toList());
+
+            // (b) public static final 必須
+            if (!(fd.isPublic() && fd.isStatic() && fd.isFinal())) {
+                violations.add(loc(file, fd)
+                        + " constants/ のフィールドは public static final で宣言してください（" + names + "）");
+            }
+
+            for (VariableDeclarator var : fd.getVariables()) {
+                // (c) 型は String / プリミティブのみ
+                if (!isAllowedConstantType(var.getType())) {
+                    violations.add(loc(file, var)
+                            + " constants/ の定数は String またはプリミティブ型のみ許可です（"
+                            + var.getNameAsString() + ": " + var.getType().asString()
+                            + "）。List/Map/配列等は不可");
+                }
+
+                // (d) 初期化子はリテラルのみ（メソッド呼び出し / new 生成を禁止）
+                Expression init = var.getInitializer().orElse(null);
+                if (init != null
+                        && (!init.findAll(MethodCallExpr.class).isEmpty()
+                                || !init.findAll(ObjectCreationExpr.class).isEmpty())) {
+                    violations.add(loc(file, var)
+                            + " constants/ の定数はリテラルで初期化してください（" + var.getNameAsString()
+                            + "）。メソッド呼び出し（List.of 等）/ new による生成は禁止");
+                }
+            }
+        }
+        return violations;
+    }
+
+    /** ルール1.3(c): constants で許可する型（String と 8 プリミティブのみ）か判定する。 */
+    private boolean isAllowedConstantType(Type type) {
+        if (type.isPrimitiveType()) {
+            return true;
+        }
+        String name = type.asString();
+        return name.equals("String") || name.equals("java.lang.String");
     }
 
     private int span(Node node) {

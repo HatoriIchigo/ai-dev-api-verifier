@@ -25,7 +25,7 @@ JSON からは判定できないルールを含む）。
 - **引数**: 第1引数＝検証対象プロジェクトのルート（省略時カレント）、第2引数＝IF 仕様書パス（任意）。
 - **終了コード**: 正常 0 / 違反 1 / I/O エラー 2。違反は標準エラー出力に内容を出す。
 - **ユニットテスト**: `src/test/java`（JUnit 5）。`mvn test` / `mvn package` で実行され、コードルール
-  （`CodeRuleValidatorTest`: 1.2 乱数・ID 生成禁止 / 1.3 constants 定数定義制約 / 4.1 DTO Lombok /
+  （`CodeRuleValidatorTest`: 1.2 乱数・ID 生成禁止 / 1.3 constants 定数定義制約 / 1.5 ワイルドカード import 禁止 / 4.1 DTO Lombok /
   5.1 null 制限 など、`LocalhostValidatorTest`: 1.4 localhost 禁止、`IntegrationTestValidatorTest`:
   17/18 統合テスト構成・エンドポイント網羅）の発火を検証する。
   各テストは検証対象の `.java` を一時ディレクトリに1ファイル書き出し、対象ルール固有のメッセージで照合する

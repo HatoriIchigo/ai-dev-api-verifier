@@ -205,6 +205,9 @@ public final class CodeRuleValidator {
             CompilationUnit cu = result.getResult().get();
             sources.add(new Source(file, dir, cu));
 
+            // ルール1.5: ワイルドカード import の禁止（全レイヤー対象）
+            violations.addAll(validateNoWildcardImports(file, cu));
+
             // サイズ制限: ファイル行数・メソッド/コンストラクタ行数
             int fileLines = Files.readAllLines(file).size();
             if (fileLines > MAX_FILE_LINES) {
@@ -1049,6 +1052,24 @@ public final class CodeRuleValidator {
      * <p><b>既知の限界</b>: ワイルドカード import（{@code import <base>.dto.in.*;}）はベース名・件数を特定
      * できないため、その側の検査をスキップする（誤検知回避。明示 import を推奨）。
      */
+    /**
+     * ルール1.5: ワイルドカード import（{@code import x.y.*;} / {@code import static x.Y.*;}）を禁止する。
+     * 明示 import を強制し、依存の所在を import 行で一意に追えるようにする。件数・ベース名で依存を検査する
+     * ルール（例: ルール4 の repository↔DTO「ちょうど1件」検査）がワイルドカードで回避されるのを防ぐ。
+     */
+    private List<String> validateNoWildcardImports(Path file, CompilationUnit cu) {
+        List<String> violations = new ArrayList<>();
+        for (ImportDeclaration imp : cu.getImports()) {
+            if (imp.isAsterisk()) {
+                String keyword = imp.isStatic() ? "import static " : "import ";
+                violations.add(loc(file, imp)
+                        + " ワイルドカード import は禁止です。明示的に import してください: "
+                        + keyword + imp.getNameAsString() + ".*");
+            }
+        }
+        return violations;
+    }
+
     private List<String> validateRepositoryDtoImports(Path file, CompilationUnit cu) {
         String base = baseName(file);
         String dtoInPkg = basePackage + ".dto.in";

@@ -364,4 +364,35 @@ class CodeRuleValidatorTest {
                     () -> "想定外の 4.3 違反: " + v);
         }
     }
+
+    @Nested
+    @DisplayName("ルール1.5: ワイルドカード import の禁止")
+    class WildcardImport {
+
+        private static final String NEEDLE = "ワイルドカード import は禁止です";
+
+        @Test
+        @DisplayName("通常のワイルドカード import は違反")
+        void wildcardImportForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "log/N.java",
+                    "package com.demo.app.log;\nimport java.util.*;\npublic class N {}\n");
+            assertTrue(has(v, NEEDLE), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("static ワイルドカード import も違反")
+        void staticWildcardImportForbidden(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "log/N.java",
+                    "package com.demo.app.log;\nimport static java.lang.Math.*;\npublic class N {}\n");
+            assertTrue(has(v, NEEDLE), () -> v.toString());
+        }
+
+        @Test
+        @DisplayName("明示 import は違反なし")
+        void explicitImportAllowed(@TempDir Path app) throws Exception {
+            List<String> v = validate(app, "log/N.java",
+                    "package com.demo.app.log;\nimport java.util.List;\npublic class N { List<String> items; }\n");
+            assertFalse(has(v, NEEDLE), () -> "ワイルドカード誤検知: " + v);
+        }
+    }
 }

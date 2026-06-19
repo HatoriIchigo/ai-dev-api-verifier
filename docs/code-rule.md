@@ -110,6 +110,13 @@ src/main/java/com/<projectName>/app/
    `main` 限定なのに対し、本ルールは **test も含む全 `.java`** を対象とする。テキスト走査で判定し、
    `java-builder` のみで検査する。
 
+1.5. **ワイルドカード import の禁止（例外なし・全レイヤー）**: `app/` 配下のすべての `.java` で
+   ワイルドカード import（`import x.y.*;` および `import static x.Y.*;`）を禁止する。明示 import を
+   強制し、依存の所在を import 行で一意に追えるようにする。とりわけ、件数・ベース名で依存を検査する
+   ルール（ルール4 の repository↔DTO「ちょうど1件」検査など）がワイルドカードで回避（＝検査スキップ）
+   されるのを防ぐ。AST 検査のため `java-builder` のみで判定する。
+   （対象は `app/` 配下の `src/main/java`。`src/test/java` は本ルールの対象外）
+
 2. **処理の禁止**: `dto/**/*.java`・`repository/*.java`・`constants/*.java` では条件・繰り返し処理
    （`if` / `for` / 拡張 `for` / `while` / `do-while` / `switch` 文・式 / 三項演算子）を禁止。
 3. **layer1 は repository 利用必須**: `layer1/` の各クラスは repository パッケージ
@@ -118,8 +125,8 @@ src/main/java/com/<projectName>/app/
    `dto/out/Foo.java`（ベース名完全一致）が対応して存在すること。さらに **`repository/Foo.java` の imports は
    対応する `dto/in/Foo` と `dto/out/Foo` をそれぞれ「ちょうど1件」含む**こと（ファイル存在だけでなく実利用を
    import で担保する）。dto/in もしくは dto/out の import が無い／対応ベース名でない／2件以上ある場合はエラー。
-   ワイルドカード import（`import <base>.dto.in.*;`）はベース名・件数を特定できないためその側はスキップする
-   （誤検知回避。明示 import 推奨）。【構造判定可】
+   ワイルドカード import（`import <base>.dto.in.*;`）はベース名・件数を特定できないため本検査ではその側を
+   スキップするが、ワイルドカード import 自体がルール1.5で禁止されるため、結果として明示 import が強制される。【構造判定可】
 4.1. **DTO は Lombok 必須**: `dto/**` の各クラスは Lombok アノテーション（`@Data` / `@Value` /
    `@Getter` / `@Setter` / `@Builder` / `@*ArgsConstructor` / `@EqualsAndHashCode` / `@ToString` /
    `@With` / `@Accessors` のいずれか）を**少なくとも1つ**付与し、かつファイルが `lombok` パッケージを

@@ -61,6 +61,16 @@ class LocalhostValidatorTest {
     }
 
     @Test
+    @DisplayName("ソースルートが src 以外（source）でも検出する")
+    void alternateSrcRoot(@TempDir Path root) throws Exception {
+        write(root, "source/main/java/com/demo/app/constants/C.java",
+                "package com.demo.app.constants;\npublic class C { public static final String H = \"localhost\"; }\n");
+        // 既定 "src" 配下には何も置かないため、src 固定だと検出されないことを保証する。
+        List<String> v = new LocalhostValidator(root, root.resolve("source")).validate();
+        assertTrue(has(v, "'localhost' のハードコードは禁止"), () -> v.toString());
+    }
+
+    @Test
     @DisplayName("localhost を含まなければ違反なし")
     void absentAllowed(@TempDir Path root) throws Exception {
         write(root, "src/main/java/com/demo/app/log/L.java",

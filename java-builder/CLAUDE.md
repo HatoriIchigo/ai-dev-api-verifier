@@ -43,7 +43,8 @@ AIがコードを生成・変更していく開発スタイルでは、コード
 
 ## 実装クラス
 
-- `Main` — エントリポイント。引数解釈（第1: 対象プロジェクトルート／第2: IF仕様書パス・任意）と終了コード制御。
+- `Main` — エントリポイント。引数解釈（第1: 対象プロジェクトルート／第2: IF仕様書パス・任意）と終了コード制御。`BuildConfig` でソースルートを解決し各 Validator へ渡す。
+- `BuildConfig` — ソースルート（従来固定の `src`）を環境変数 `JAVA_BUILDER_SRC_ROOT`／application.yaml の `src-root` から解決する（既定 `src`。詳細は [docs/java-builder.md](../docs/java-builder.md)）。
 - `DirectoryValidator` — プロジェクトルート〜`app/` の階層構成を検証し、各 `app/` に対して下記クラスを実行。
 - `AppStructureValidator` — `app/` 配下の `.java` 配置・`layer` 連番・`dto/in`・`dto/out` 数を検証。
 - `CodeRuleValidator` — JavaParser の AST を用いてコード内容ルール（内容ルール1〜10、DTO の Lombok 必須=4.1 を含む・レイヤー依存・外部連携）を検証。
@@ -82,6 +83,7 @@ java-builder/
         ├── java/
         │   └── com/example/
         │       ├── Main.java                  # エントリポイント
+        │       ├── BuildConfig.java           # ソースルート(src)を環境変数/application.yamlから解決
         │       ├── DirectoryValidator.java    # ルート〜app/ の階層構成検証
         │       ├── AppStructureValidator.java # app/配下の配置・layer連番・dto数検証
         │       ├── CodeRuleValidator.java     # AST（JavaParser）によるコード内容検証

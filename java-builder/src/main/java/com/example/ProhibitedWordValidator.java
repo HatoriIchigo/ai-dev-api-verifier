@@ -28,10 +28,20 @@ public final class ProhibitedWordValidator {
     private static final String PROHIBITED_WORDS_FILE = "prohibited-words.txt";
 
     private final Path root;
+    private final Path srcRoot;
     private final List<String> prohibitedWords;
 
     public ProhibitedWordValidator(Path root) {
+        this(root, root.resolve(BuildConfig.DEFAULT_SRC_ROOT));
+    }
+
+    /**
+     * @param root    検証対象プロジェクトのルート（違反メッセージの相対パス表示に使用）
+     * @param srcRoot ソースルート（{@code root} 配下。従来の固定 {@code src} に相当）
+     */
+    public ProhibitedWordValidator(Path root, Path srcRoot) {
         this.root = root;
+        this.srcRoot = srcRoot;
         this.prohibitedWords = loadProhibitedWords();
     }
 
@@ -41,7 +51,7 @@ public final class ProhibitedWordValidator {
             return violations;
         }
 
-        Path mainJava = root.resolve("src").resolve("main").resolve("java");
+        Path mainJava = srcRoot.resolve("main").resolve("java");
         if (!Files.isDirectory(mainJava)) {
             return violations;
         }

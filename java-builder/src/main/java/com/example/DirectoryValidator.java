@@ -28,13 +28,14 @@ public final class DirectoryValidator {
     private static final Pattern PROJECT_NAME = Pattern.compile("^[0-9a-zA-Z_-]+$");
 
     private final Path root;
+    private final Path srcRoot;
     private final Path openApiFile;
 
     /**
      * @param root 検証対象プロジェクトのルートディレクトリ
      */
     public DirectoryValidator(Path root) {
-        this(root, null);
+        this(root, root.resolve(BuildConfig.DEFAULT_SRC_ROOT), null);
     }
 
     /**
@@ -42,7 +43,18 @@ public final class DirectoryValidator {
      * @param openApiFile IF仕様書（OpenAPI）のパス。{@code null} の場合は OpenAPI 突合を行わない。
      */
     public DirectoryValidator(Path root, Path openApiFile) {
+        this(root, root.resolve(BuildConfig.DEFAULT_SRC_ROOT), openApiFile);
+    }
+
+    /**
+     * @param root        検証対象プロジェクトのルートディレクトリ
+     * @param srcRoot     ソースルート（{@code root} 配下。従来の固定 {@code src} に相当）。
+     *                    配下の {@code main}/{@code test}・{@code java}/{@code resources} 構造は固定。
+     * @param openApiFile IF仕様書（OpenAPI）のパス。{@code null} の場合は OpenAPI 突合を行わない。
+     */
+    public DirectoryValidator(Path root, Path srcRoot, Path openApiFile) {
         this.root = root;
+        this.srcRoot = srcRoot;
         this.openApiFile = openApiFile;
     }
 
@@ -60,22 +72,22 @@ public final class DirectoryValidator {
         violations.addAll(validateSourceTreeFileTypes());
 
         // 使用禁止語（dummy/mock/fake 等）の検査: src/main/java 全体が対象。
-        violations.addAll(new ProhibitedWordValidator(root).validate());
+        violations.addAll(new ProhibitedWordValidator(root, srcRoot).validate());
 
         // ルール1.4: localhost のハードコード禁止（src/main/java・src/test/java 双方が対象）。
-        violations.addAll(new LocalhostValidator(root).validate());
+        violations.addAll(new LocalhostValidator(root, srcRoot).validate());
 
         // ルール19: constants の定数値とテストリテラルの重複検出（答え合わせ漏洩。src/main・src/test 双方が対象）。
-        violations.addAll(new ConstantsTestDataValidator(root).validate());
+        violations.addAll(new ConstantsTestDataValidator(root, srcRoot).validate());
 
         // ルール18: IF仕様書（OpenAPI）が指定されていれば、統合テストのエンドポイント網羅検査に使う path 一覧を読み込む。
         List<String> endpointPaths = openApiFile != null
                 ? OpenApiValidator.loadEndpointPaths(openApiFile)
                 : List.of();
 
-        Path com = root.resolve("src").resolve("main").resolve("java").resolve("com");
+        Path com = srcRoot.resolve("main").resolve("java").resolve("com");
         if (!Files.isDirectory(com)) {
-            violations.add("必須ディレクトリが存在しません: src/main/java/com");
+            violations.add("必須ディレクトリが存在しません: " + rel(com));
             return violations;
         }
 
@@ -117,7 +129,7 @@ public final class DirectoryValidator {
 
             // ルール17・18: 統合テストの構成（常に必須）とエンドポイント網羅（OpenAPI 指定時のみ）。
             // 対象は test ツリー（src/test/java/com/<name>/integration）のため app プレフィックスは付けない。
-            violations.addAll(new IntegrationTestValidator(root, name, endpointPaths).validate());
+            violations.addAll(new IntegrationTestValidator(root, srcRoot, name, endpointPaths).validate());
         }
 
         if (validProjects.isEmpty() && violations.isEmpty()) {
@@ -135,7 +147,7 @@ public final class DirectoryValidator {
     private List<String> validateSourceTreeFileTypes() throws IOException {
         List<String> violations = new ArrayList<>();
         for (String stage : List.of("main", "test")) {
-            Path src = root.resolve("src").resolve(stage);
+            Path src = srcRoot.resolve(stage);
             violations.addAll(checkOnlyExtensions(
                     src.resolve("java"), Set.of(".java"), ".java"));
             violations.addAll(checkOnlyExtensions(

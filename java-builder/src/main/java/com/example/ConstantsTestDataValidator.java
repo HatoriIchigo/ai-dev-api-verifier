@@ -48,18 +48,28 @@ public final class ConstantsTestDataValidator {
     private static final int DEFAULT_MIN_LENGTH = 4;
 
     private final Path root;
+    private final Path srcRoot;
     private final int minLength;
 
     public ConstantsTestDataValidator(Path root) {
+        this(root, root.resolve(BuildConfig.DEFAULT_SRC_ROOT));
+    }
+
+    /**
+     * @param root    検証対象プロジェクトのルート（違反メッセージの相対パス表示に使用）
+     * @param srcRoot ソースルート（{@code root} 配下。従来の固定 {@code src} に相当）
+     */
+    public ConstantsTestDataValidator(Path root, Path srcRoot) {
         this.root = root;
+        this.srcRoot = srcRoot;
         this.minLength = loadMinLength();
     }
 
     public List<String> validate() throws IOException {
         List<String> violations = new ArrayList<>();
 
-        Path mainJava = root.resolve("src").resolve("main").resolve("java");
-        Path testJava = root.resolve("src").resolve("test").resolve("java");
+        Path mainJava = srcRoot.resolve("main").resolve("java");
+        Path testJava = srcRoot.resolve("test").resolve("java");
         if (!Files.isDirectory(mainJava) || !Files.isDirectory(testJava)) {
             return violations;
         }

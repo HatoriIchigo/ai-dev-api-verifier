@@ -15,7 +15,10 @@ public class Main {
                 ? Path.of(args[1]).toAbsolutePath().normalize()
                 : null;
 
-        DirectoryValidator validator = new DirectoryValidator(root, openApi);
+        // ソースルートは固定の "src" ではなく環境変数／application.yaml から解決する（既定 "src"）。
+        Path srcRoot = BuildConfig.resolveSrcRoot(root);
+
+        DirectoryValidator validator = new DirectoryValidator(root, srcRoot, openApi);
         List<String> violations;
         try {
             violations = validator.validate();

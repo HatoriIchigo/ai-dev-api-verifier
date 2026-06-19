@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 public final class IntegrationTestValidator {
 
     private final Path root;
+    private final Path srcRoot;
     private final String projectName;
     private final List<String> endpointPaths;
 
@@ -35,7 +36,19 @@ public final class IntegrationTestValidator {
      * @param endpointPaths OpenAPI の paths 一覧。空なら網羅検査（ルール18）はスキップする。
      */
     public IntegrationTestValidator(Path root, String projectName, List<String> endpointPaths) {
+        this(root, root.resolve(BuildConfig.DEFAULT_SRC_ROOT), projectName, endpointPaths);
+    }
+
+    /**
+     * @param root          検証対象プロジェクトのルート（違反メッセージの相対パス表示に使用）
+     * @param srcRoot       ソースルート（{@code root} 配下。従来の固定 {@code src} に相当）
+     * @param projectName   {@code com/<projectName>} のプロジェクト名
+     * @param endpointPaths OpenAPI の paths 一覧。空なら網羅検査（ルール18）はスキップする。
+     */
+    public IntegrationTestValidator(Path root, Path srcRoot, String projectName,
+                                    List<String> endpointPaths) {
         this.root = root;
+        this.srcRoot = srcRoot;
         this.projectName = projectName;
         this.endpointPaths = endpointPaths;
     }
@@ -43,7 +56,7 @@ public final class IntegrationTestValidator {
     public List<String> validate() throws IOException {
         List<String> violations = new ArrayList<>();
 
-        Path integrationDir = root.resolve("src").resolve("test").resolve("java")
+        Path integrationDir = srcRoot.resolve("test").resolve("java")
                 .resolve("com").resolve(projectName).resolve("integration");
 
         // ルール17: ディレクトリ存在

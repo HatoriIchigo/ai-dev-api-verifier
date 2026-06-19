@@ -26,14 +26,32 @@ JSON からは判定できないルールを含む）。
 - **終了コード**: 正常 0 / 違反 1 / I/O エラー 2。違反は標準エラー出力に内容を出す。
 - **ユニットテスト**: `src/test/java`（JUnit 5）。`mvn test` / `mvn package` で実行され、コードルール
   （`CodeRuleValidatorTest`: 1.2 乱数・ID 生成禁止 / 1.3 constants 定数定義制約 / 1.5 ワイルドカード import 禁止 / 4.1 DTO Lombok /
-  5.1 null 制限 など、`LocalhostValidatorTest`: 1.4 localhost 禁止、`IntegrationTestValidatorTest`:
-  17/18 統合テスト構成・エンドポイント網羅）の発火を検証する。
+  5.1 null 制限 など、`LocalhostValidatorTest`: 1.4 localhost 禁止＋`src` 以外のソースルートでの検出、
+  `IntegrationTestValidatorTest`: 17/18 統合テスト構成・エンドポイント網羅、`BuildConfigTest`:
+  ソースルートの設定解決〔application.yaml／既定フォールバック〕）の発火を検証する。
   各テストは検証対象の `.java` を一時ディレクトリに1ファイル書き出し、対象ルール固有のメッセージで照合する
   （1テスト＝1つの失敗要因）。
 
+## ソースルートの設定（`src` の可変化）
+
+検証対象の**ソースルートは従来 `src` 固定**だったが、案件によって名称や配置が異なる（`source`／モジュール配下など）
+ため、**第1引数のルートからソースルートまでの相対パス**を設定で差し替えられる（既定は従来どおり `src`）。可変なのは
+この相対パスのみで、配下の `main`／`test` および `java`／`resources` 構造は固定。
+
+- 解決クラスは `BuildConfig`。優先順位は次の通り（先勝ち）:
+  1. 環境変数 `JAVA_BUILDER_SRC_ROOT`（Docker 実行時は `docker run -e JAVA_BUILDER_SRC_ROOT=source …` で注入）
+  2. application.yaml の `src-root` キー。場所は `-Dapplication.config=<path>` で指定でき、未指定時は
+     カレントディレクトリの `application.yaml`／`application.yml` を探す（例: `src-root: source`）
+  3. 既定値 `src`（後方互換）
+- 値はルートからの相対パスとして解釈する（`src` / `source` / `modules/app/src` 等）。設定不備（ファイル無し・
+  キー無し・解析失敗）は既定 `src` にフォールバックし、検証自体は止めない。
+- `CodeRuleValidator` のソースルート探索（`sourceRootOf`）は `appDir` から親を辿る相対実装のため、`src` 名に
+  依存せず本変更の影響を受けない。
+
 ## 実装クラス
 
-- `Main` — エントリポイント。引数解釈と終了コード制御。
+- `Main` — エントリポイント。引数解釈と終了コード制御。`BuildConfig` でソースルートを解決して各 Validator へ渡す。
+- `BuildConfig` — ソースルート（従来固定の `src`）を環境変数／application.yaml から解決する（既定 `src`）。
 - `DirectoryValidator` — プロジェクトルート〜`app/` の階層構成を検証し、各 `app/` に対し下記を実行。
 - `AppStructureValidator` — `app/` 配下の `.java` 配置・`layer` 連番・`dto/in`・`dto/out` 数を検証。
 - `CodeRuleValidator` — JavaParser の AST でコード内容ルール（1〜10、DTO の Lombok 必須=4.1 を含む）・レイヤー依存・外部連携を検証。

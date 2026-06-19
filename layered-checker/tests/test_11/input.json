@@ -1,7 +1,6 @@
 {
   "projectName": "sample",
   "openapi": "examples/openapi.yaml",
-
   "top": [
     {
       "operationId": "loginAccount",
@@ -34,7 +33,6 @@
       ]
     }
   ],
-
   "layer": {
     "layer1": [
       {
@@ -49,8 +47,7 @@
       {
         "name": "AccountService",
         "description": [
-          "ログイン要求:認証情報を検証して結果を返す:認証結果",
-          "ユーザID:アカウント情報を整形して返す:アカウント詳細"
+          "入力::出力"
         ],
         "imports": [
           "layer1/AccountStore"
@@ -58,7 +55,6 @@
       }
     ]
   },
-
   "internal": {
     "HealthChecker": [
       {
@@ -67,7 +63,6 @@
       }
     ]
   },
-
   "repository": [
     {
       "name": "Account",
@@ -83,7 +78,6 @@
       ]
     }
   ],
-
   "dto": {
     "in": [
       "Account"

@@ -1,7 +1,6 @@
 {
   "projectName": "sample",
   "openapi": "examples/openapi.yaml",
-
   "top": [
     {
       "operationId": "loginAccount",
@@ -34,17 +33,7 @@
       ]
     }
   ],
-
   "layer": {
-    "layer1": [
-      {
-        "name": "AccountStore",
-        "description": "アカウントID:repository 経由でアカウントを取得:アカウントエンティティ",
-        "imports": [
-          "repository/Account"
-        ]
-      }
-    ],
     "layer2": [
       {
         "name": "AccountService",
@@ -56,9 +45,17 @@
           "layer1/AccountStore"
         ]
       }
+    ],
+    "layerA": [
+      {
+        "name": "AccountStore",
+        "description": "アカウントID:repository 経由でアカウントを取得:アカウントエンティティ",
+        "imports": [
+          "repository/Account"
+        ]
+      }
     ]
   },
-
   "internal": {
     "HealthChecker": [
       {
@@ -67,7 +64,6 @@
       }
     ]
   },
-
   "repository": [
     {
       "name": "Account",
@@ -83,7 +79,6 @@
       ]
     }
   ],
-
   "dto": {
     "in": [
       "Account"

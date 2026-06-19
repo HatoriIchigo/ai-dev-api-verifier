@@ -1,7 +1,6 @@
 {
   "projectName": "sample",
   "openapi": "examples/openapi.yaml",
-
   "top": [
     {
       "operationId": "loginAccount",
@@ -34,7 +33,6 @@
       ]
     }
   ],
-
   "layer": {
     "layer1": [
       {
@@ -58,16 +56,17 @@
       }
     ]
   },
-
   "internal": {
     "HealthChecker": [
       {
         "name": "HealthChecker",
-        "description": "なし:アプリ稼働状態を判定する:稼働可否"
+        "description": "なし:アプリ稼働状態を判定する:稼働可否",
+        "imports": [
+          "repository/Account"
+        ]
       }
     ]
   },
-
   "repository": [
     {
       "name": "Account",
@@ -83,7 +82,6 @@
       ]
     }
   ],
-
   "dto": {
     "in": [
       "Account"

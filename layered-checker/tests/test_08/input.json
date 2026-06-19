@@ -1,7 +1,6 @@
 {
   "projectName": "sample",
   "openapi": "examples/openapi.yaml",
-
   "top": [
     {
       "operationId": "loginAccount",
@@ -34,7 +33,6 @@
       ]
     }
   ],
-
   "layer": {
     "layer1": [
       {
@@ -58,7 +56,6 @@
       }
     ]
   },
-
   "internal": {
     "HealthChecker": [
       {
@@ -67,7 +64,6 @@
       }
     ]
   },
-
   "repository": [
     {
       "name": "Account",
@@ -76,14 +72,9 @@
         "db": {
           "schema": "accounts.login"
         }
-      },
-      "imports": [
-        "dto/in/Account",
-        "dto/out/Account"
-      ]
+      }
     }
   ],
-
   "dto": {
     "in": [
       "Account"

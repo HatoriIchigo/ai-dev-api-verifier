@@ -1,7 +1,6 @@
 {
   "projectName": "sample",
   "openapi": "examples/openapi.yaml",
-
   "top": [
     {
       "operationId": "loginAccount",
@@ -10,7 +9,7 @@
       "method": "POST",
       "description": "ログインID・パスワード:認証情報を検証しトークンを発行:アクセストークン",
       "imports": [
-        "layer2/AccountService"
+        "layer1/AccountStore"
       ]
     },
     {
@@ -34,7 +33,6 @@
       ]
     }
   ],
-
   "layer": {
     "layer1": [
       {
@@ -58,7 +56,6 @@
       }
     ]
   },
-
   "internal": {
     "HealthChecker": [
       {
@@ -67,7 +64,6 @@
       }
     ]
   },
-
   "repository": [
     {
       "name": "Account",
@@ -83,7 +79,6 @@
       ]
     }
   ],
-
   "dto": {
     "in": [
       "Account"

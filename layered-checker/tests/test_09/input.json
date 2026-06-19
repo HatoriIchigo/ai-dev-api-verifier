@@ -1,7 +1,6 @@
 {
   "projectName": "sample",
   "openapi": "examples/openapi.yaml",
-
   "top": [
     {
       "operationId": "loginAccount",
@@ -34,7 +33,6 @@
       ]
     }
   ],
-
   "layer": {
     "layer1": [
       {
@@ -58,7 +56,6 @@
       }
     ]
   },
-
   "internal": {
     "HealthChecker": [
       {
@@ -67,15 +64,12 @@
       }
     ]
   },
-
   "repository": [
     {
       "name": "Account",
       "description": "アカウント検索条件:アカウントDBへ問い合わせ:アカウントレコード",
       "external": {
-        "db": {
-          "schema": "accounts.login"
-        }
+        "db": {}
       },
       "imports": [
         "dto/in/Account",
@@ -83,7 +77,6 @@
       ]
     }
   ],
-
   "dto": {
     "in": [
       "Account"

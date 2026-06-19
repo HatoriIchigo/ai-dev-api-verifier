@@ -91,12 +91,34 @@ verify_json() {
 #   - layer のキーは layer<数値> 形式
 #   - top の各エンドポイントに path / method / description / imports 必須
 #   - dto 以外の各コンポーネント定義に imports 必須
+#   - description は「入力:処理:出力」を半角コロンで結んだ3要素（複数処理は配列で表現可）
 # ---------------------------------------------------------------------------
 verify_structure() {
   local file="$1"
   local errors
 
   errors="$(jq -r '
+    # description の値（文字列 または 文字列配列）が
+    # 「入力:処理:出力」を半角コロンで結んだ3要素であるかを検査し、
+    # 違反メッセージをストリームとして返す。
+    #   - 半角コロン ":" のみを区切りとして許可（3分割を厳守）
+    #   - 各要素は空であってはならない（[^:]+ により担保）
+    #   - 配列の場合は各要素が同じ形式を満たすこと（複数処理対応）
+    def descErrors($loc):
+      if type == "string" then
+        ( select( test("^[^:]+:[^:]+:[^:]+$") | not )
+          | "\($loc) の description は「入力:処理:出力」を半角コロンで結んだ3要素にしてください: \(.)" )
+      elif type == "array" then
+        ( to_entries[] | .key as $j | .value
+          | if   type != "string" then
+              "\($loc) の description[\($j)] は文字列である必要があります"
+            elif (test("^[^:]+:[^:]+:[^:]+$") | not) then
+              "\($loc) の description[\($j)] は「入力:処理:出力」を半角コロンで結んだ3要素にしてください: \(.)"
+            else empty
+            end )
+      else
+        "\($loc) の description は文字列または文字列配列である必要があります"
+      end;
     . as $root
     | [
         # 必須トップレベルキー
@@ -118,6 +140,40 @@ verify_structure() {
           | ["path","method","description","imports"][] as $f
           | select( ($e | has($f)) | not )
           | "top[\($i)] に必須フィールドがありません: \($f)" ),
+
+        # description 形式（「入力:処理:出力」）: top
+        ( ($root.top // [])
+          | to_entries[]
+          | .key as $i | .value
+          | select( has("description") )
+          | .description | descErrors("top[\($i)]") ),
+
+        # description 形式（「入力:処理:出力」）: layer
+        ( ($root.layer // {})
+          | select(type == "object")
+          | to_entries[]
+          | .key as $lk | (.value // [])
+          | to_entries[]
+          | .key as $i | .value
+          | select( has("description") )
+          | .description | descErrors("layer.\($lk)[\($i)]") ),
+
+        # description 形式（「入力:処理:出力」）: internal
+        ( ($root.internal // {})
+          | select(type == "object")
+          | to_entries[]
+          | .key as $lk | (.value // [])
+          | to_entries[]
+          | .key as $i | .value
+          | select( has("description") )
+          | .description | descErrors("internal.\($lk)[\($i)]") ),
+
+        # description 形式（「入力:処理:出力」）: repository
+        ( ($root.repository // [])
+          | to_entries[]
+          | .key as $i | .value
+          | select( has("description") )
+          | .description | descErrors("repository[\($i)]") ),
 
         # imports 必須（dto 以外）: layer
         ( ($root.layer // {})

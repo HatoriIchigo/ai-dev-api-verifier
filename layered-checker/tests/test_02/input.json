@@ -1,7 +1,6 @@
 {
   "projectName": "sample",
   "openapi": "examples/openapi.yaml",
-
   "top": [
     {
       "operationId": "loginAccount",
@@ -18,7 +17,10 @@
       "entry": "top/GetAccount",
       "path": "/accounts/{userId}",
       "method": "GET",
-      "description": "ユーザID:アカウント情報を取得:アカウント詳細",
+      "description": [
+        "ユーザID:アカウント情報を取得:アカウント詳細",
+        "ユーザID:権限を確認:権限情報"
+      ],
       "imports": [
         "layer2/AccountService"
       ]
@@ -34,7 +36,6 @@
       ]
     }
   ],
-
   "layer": {
     "layer1": [
       {
@@ -58,7 +59,6 @@
       }
     ]
   },
-
   "internal": {
     "HealthChecker": [
       {
@@ -67,11 +67,13 @@
       }
     ]
   },
-
   "repository": [
     {
       "name": "Account",
-      "description": "アカウント検索条件:アカウントDBへ問い合わせ:アカウントレコード",
+      "description": [
+        "検索条件:アカウントDBへ問い合わせ:レコード",
+        "アカウントID:キャッシュ確認:ヒット有無"
+      ],
       "external": {
         "db": {
           "schema": "accounts.login"
@@ -83,7 +85,6 @@
       ]
     }
   ],
-
   "dto": {
     "in": [
       "Account"

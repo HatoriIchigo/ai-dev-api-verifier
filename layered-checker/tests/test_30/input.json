@@ -1,0 +1,21 @@
+{
+  "projectName": "demo",
+  "top": [
+    { "operationId": "op", "entry": "top/Op", "path": "/x", "method": "GET",
+      "description": "入力:処理:出力", "imports": ["layer1/AccountStore"] }
+  ],
+  "layer": {
+    "layer1": [
+      { "name": "AccountStore", "description": "入力:処理:出力",
+        "imports": ["repository/AccountRepository"] },
+      { "name": "ProfileStore", "description": "入力:処理:出力",
+        "imports": ["repository/AccountRepository"] }
+    ]
+  },
+  "repository": [
+    { "name": "AccountRepository", "description": "入力:処理:出力",
+      "external": { "db": { "schema": "accounts" } },
+      "imports": ["dto/in/AccountInDto", "dto/out/AccountOutDto"] }
+  ],
+  "dto": { "in": ["AccountInDto"], "out": ["AccountOutDto"] }
+}

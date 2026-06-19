@@ -1,0 +1,2 @@
+AccountStore と ProfileStore は直接 import 集合が同一
+[layer-rule 12]

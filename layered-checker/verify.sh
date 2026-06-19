@@ -248,7 +248,9 @@ verify_structure() {
 #   - import 宛先の実在（dangling 参照検出）          [整合性]
 #   - layer1 は repository を import 必須             [code-rule 3]
 #   - layer<N>(N≥2) は下位レイヤーを import 必須      [code-rule 7]
-#   - レイヤー差 ≥2 の import 禁止                    [layer-rule 14]
+#   - レイヤー差 ≥2 の import 禁止＝降格              [layer-rule 14]
+#   - 同一レイヤーの依存包含＝昇格／依存集合一致      [layer-rule 12]
+#     （※ layer-rule 11 飛び越し参照は strict な 14 に内包されるため別途実装しない）
 #   - top は最大レイヤーのみ import 可                [code-rule 8]
 #   - external は repository のみ                     [layer-rule 15]
 #   - internal の推移閉包に repository が現れない     [code-rule 10]
@@ -390,14 +392,33 @@ verify_rules() {
           | select( ($lns | any(. < $N)) | not )
           | "layer\($N)[\($i)] (\(.name)) は下位レイヤー(layer1..layer\($N-1))を import していません [code-rule 7]" ),
 
-        # レイヤー差 ≥2 の import 禁止（layer-rule 14）
+        # レイヤー差 ≥2 の import 禁止＝降格（layer-rule 14）
         ( ($root.layer // {}) | to_entries[]
           | (.key | capture("^layer(?<n>[0-9]+)$").n | tonumber) as $N
           | .value | to_entries[] | .key as $i | .value as $c
           | ($c.imports // [])[] | select(test("^layer[0-9]+/"))
           | capture("^layer(?<n>[0-9]+)/(?<name>.+)$") as $m | ($m.n|tonumber) as $M
           | select( ($N - $M) >= 2 )
-          | "layer\($N)[\($i)] (\($c.name)) が layer\($M)/\($m.name) を import（レイヤー差>=2は禁止）[layer-rule 14]" ),
+          | "layer\($N)[\($i)] (\($c.name)) が layer\($M)/\($m.name) を import（レイヤー差>=2は禁止。layer\($M+1) へ降格してください）[layer-rule 14]" ),
+
+        # 同一レイヤーの依存包含＝昇格（layer-rule 12）
+        #   同レイヤーの相異なる2コンポーネント a, b の「直接 import 集合」を比較する。
+        #   - imports(b) ⊆ imports(a) かつ真包含（|A|>|B|・B 非空） → a を上位へ昇格し b を import せよ。
+        #   - imports(a) == imports(b)（同一・非空） → 依存が完全重複。統合 or 責務分離（name 昇順で1回だけ報告）。
+        ( ($root.layer // {}) | to_entries[]
+          | .key as $lk | (.value // []) as $comps
+          | range(0; ($comps|length)) as $i | range(0; ($comps|length)) as $j
+          | select($i != $j)
+          | ($comps[$i]) as $a | ($comps[$j]) as $b
+          | ($a.imports // [] | unique) as $A
+          | ($b.imports // [] | unique) as $B
+          | select( ($B|length) > 0 and (($B - $A)|length) == 0 )
+          | if   ($A|length) > ($B|length)
+            then "依存包含: layer.\($lk) の \($a.name) は \($b.name) の依存集合を包含しています（\($a.name) を上位レイヤーへ昇格し \($b.name) を import してください）[layer-rule 12]"
+            elif ($a.name < $b.name)
+            then "依存集合一致: layer.\($lk) の \($a.name) と \($b.name) は直接 import 集合が同一です（統合するか責務を分離してください）[layer-rule 12]"
+            else empty
+            end ),
 
         # top は最大レイヤーのみ import 可（code-rule 8）
         ( ($root.top // []) | to_entries[] | .key as $i | .value as $e

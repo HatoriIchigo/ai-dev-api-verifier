@@ -1,0 +1,26 @@
+{
+  "projectName": "demo",
+  "top": [
+    { "operationId": "op", "entry": "top/Op", "path": "/x", "method": "GET",
+      "description": "入力:処理:出力", "imports": ["layer2/SvcA"] }
+  ],
+  "layer": {
+    "layer1": [
+      { "name": "AccountStore", "description": "入力:処理:出力",
+        "imports": ["repository/AccountRepository"] }
+    ],
+    "layer2": [
+      { "name": "SvcA", "description": "入力:処理:出力",
+        "imports": ["layer1/AccountStore", "util/Helper"] },
+      { "name": "SvcB", "description": "入力:処理:出力",
+        "imports": ["layer1/AccountStore", "util/Formatter"] }
+    ]
+  },
+  "util": ["Helper", "Formatter"],
+  "repository": [
+    { "name": "AccountRepository", "description": "入力:処理:出力",
+      "external": { "db": { "schema": "accounts" } },
+      "imports": ["dto/in/AccountInDto", "dto/out/AccountOutDto"] }
+  ],
+  "dto": { "in": ["AccountInDto"], "out": ["AccountOutDto"] }
+}

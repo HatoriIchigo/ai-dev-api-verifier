@@ -69,10 +69,16 @@ JSON の構造（必須キー・形式）を検証します。
 - `import` 宛先の実在（dangling 参照検出） — [整合性]
 - `layer1` は `repository` を import 必須 — [code-rule 3]
 - `layer<N>`（N≥2）は下位レイヤーを import 必須 — [code-rule 7]
-- レイヤー差 ≥2 の import 禁止 — [layer-rule 14]
+- レイヤー差 ≥2 の import 禁止＝降格（layer(Y)+1 へ） — [layer-rule 14]
+- 同一レイヤーの依存包含＝昇格／直接 import 集合の一致 — [layer-rule 12]
 - `top` は最大レイヤーのみ import 可 — [code-rule 8]
 - `external` は `repository` のみ — [layer-rule 15]
 - `internal` の推移閉包に `repository` が現れない（backend 完結） — [code-rule 10]
+
+> レイヤー間関係の補足:
+> - 「依存集合」は**直接 import**（`imports` の宛先集合）で比較する（推移閉包ではない）。
+> - **ルール11（飛び越し参照）は strict なルール14（差≥2を一律禁止）に内包**されるため別途実装しない。
+> - **ルール13（部分共有→共通切り出し）は、しきい値が設計判断のため未実装**（将来対応）。
 
 ## テスト
 

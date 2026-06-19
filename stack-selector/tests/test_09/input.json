@@ -1,0 +1,9 @@
+{
+  "language": {
+    "kind": "java",
+    "version": "21"
+  },
+  "package": "maven",
+  "build": "maven",
+  "libraries": {}
+}

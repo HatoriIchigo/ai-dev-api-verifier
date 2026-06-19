@@ -1,0 +1,18 @@
+{
+  "language": {
+    "kind": "rust",
+    "version": "21"
+  },
+  "package": "cargo",
+  "build": "cargo",
+  "libraries": [
+    {
+      "name": "lombok",
+      "version": "3.0.0"
+    },
+    {
+      "name": "aaa",
+      "version": "21"
+    }
+  ]
+}

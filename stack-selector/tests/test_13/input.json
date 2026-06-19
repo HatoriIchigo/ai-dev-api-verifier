@@ -1,0 +1,18 @@
+{
+  "language": {
+    "kind": "typescript",
+    "version": "21"
+  },
+  "package": "npm",
+  "build": "npm",
+  "libraries": [
+    {
+      "name": "lombok",
+      "version": "3.0.0"
+    },
+    {
+      "name": "aaa",
+      "version": "21"
+    }
+  ]
+}

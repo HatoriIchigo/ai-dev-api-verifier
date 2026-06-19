@@ -1,0 +1,18 @@
+{
+  "language": {
+    "kind": "ruby",
+    "version": "21"
+  },
+  "package": "bundler",
+  "build": "rake",
+  "libraries": [
+    {
+      "name": "lombok",
+      "version": "3.0.0"
+    },
+    {
+      "name": "aaa",
+      "version": "21"
+    }
+  ]
+}

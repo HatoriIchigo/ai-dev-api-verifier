@@ -1,0 +1,17 @@
+{
+  "language": {
+    "kind": "java",
+    "version": "21"
+  },
+  "package": "maven",
+  "build": "maven",
+  "libraries": [
+    {
+      "name": "lombok"
+    },
+    {
+      "name": "aaa",
+      "version": "21"
+    }
+  ]
+}

@@ -11,6 +11,7 @@
 | `ifspec-verifier/` | OpenAPI 仕様書を redocly + 独自規約で検証 | [docs/ifspec-verifier.md](docs/ifspec-verifier.md) |
 | `layered-checker/` | 設計 JSON を構成ルール・レイヤールールで検証 | [docs/layered-checker.md](docs/layered-checker.md) |
 | `java-builder/` | Java ソースを AST 解析して構成・規約を検証 | [docs/java-builder.md](docs/java-builder.md) ／ [java-builder/CLAUDE.md](java-builder/CLAUDE.md) |
+| `stack-selector/` | 技術スタック決定 JSON のキー構造を検証 | [docs/stack-selector.md](docs/stack-selector.md) ／ [stack-selector/CLAUDE.md](stack-selector/CLAUDE.md) |
 
 `layered-checker` と `java-builder` が検証するレイヤー・repository などの**構成ルール本体は
 [docs/code-rule.md](docs/code-rule.md) に一元管理**する（両ツール共通の正本）。ルールの追加・変更は

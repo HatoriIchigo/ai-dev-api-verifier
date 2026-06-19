@@ -1,0 +1,11 @@
+{
+  "language": {
+    "kind": "python",
+    "version": "3.12.3"
+  },
+  "package": "pip",
+  "build": "uv",
+  "libraries": [
+    { "name": "tqdm", "version": "3.0.0" }
+  ]
+}

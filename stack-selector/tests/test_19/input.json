@@ -1,0 +1,18 @@
+{
+  "language": {
+    "kind": "go",
+    "version": "21"
+  },
+  "package": "gomod",
+  "build": "go",
+  "libraries": [
+    {
+      "name": "lombok",
+      "version": "3.0.0"
+    },
+    {
+      "name": "aaa",
+      "version": "21"
+    }
+  ]
+}

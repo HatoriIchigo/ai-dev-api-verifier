@@ -5,17 +5,22 @@
 
 ## 検証主体（どのツールがどう担保するか）
 
-同じルールを、対象成果物に応じて 2 つのツールが別レベルで検証します。
+同じルール群を、対象成果物に応じて複数のツールが別レベルで検証します。
 
 | ツール | 対象 | レベル | 詳細 |
 |--------|------|--------|------|
 | [`layered-checker`](layered-checker.md) | 設計 JSON | **構造**から判定できるルールのみ | `verify.sh`（bash / jq） |
-| [`java-builder`](java-builder.md) | Java ソース | **AST**まで含む全ルール | Docker / JavaParser |
+| [`directory-checker`](directory-checker.md) | 実ファイルツリー | **ディレクトリ／ファイル構成**（下記「ディレクトリ構成ルール」） | `verify.sh`（bash） |
+| [`java-builder`](java-builder.md) | Java ソース | **AST（コード内容）** | Docker / JavaParser |
 
-- `layered-checker` が担保するのは構造的に判定可能なルール（後述の「構造判定可」印あり）。
-  文字列ハードコード・if/for 禁止・サイズ制限など AST が必要なルールは対象外で、`java-builder` が担う。
-- `java-builder` の AST 実装に固有の詳細（検出方式・外部設定ファイル・シンボル解決の限界・
-  OpenAPI との突合など）は [`docs/java-builder.md`](java-builder.md) に置く。本ファイルはルール本体の正本とする。
+- `layered-checker` が担保するのは設計 JSON から構造的に判定可能なルール（後述の「構造判定可」印あり）。
+- **`directory-checker` が「ディレクトリ構成ルール」（D1〜D5・ファイル種別配置・統合テストディレクトリ存在=ルール17の構造部分）の正本**。
+  実ファイルツリーを `find` 等で検証する（旧 `java-builder` の `DirectoryValidator`／`AppStructureValidator`
+  から移行）。`--type backend` で `pom.xml` 等を検出したら Java backend として検証する。
+- `java-builder` は**コード内容（AST）に専念**する。文字列ハードコード・if/for 禁止・サイズ制限・命名 import
+  解決・OpenAPI 突合など AST が必要なルールを担い、ディレクトリ／ファイル構成検証は持たない（移行済み）。
+- `java-builder` の AST 実装に固有の詳細は [`docs/java-builder.md`](java-builder.md)、`directory-checker` の
+  詳細は [`docs/directory-checker.md`](directory-checker.md) に置く。本ファイルはルール本体の正本とする。
 
 ---
 

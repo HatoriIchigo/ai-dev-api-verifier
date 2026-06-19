@@ -12,10 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link IntegrationTestValidator} の単体テスト（テスト構成ルール17・18）。
+ * {@link IntegrationTestValidator} の単体テスト（テスト構成ルール18: エンドポイント網羅）。
  *
- * <p>統合テストディレクトリ／{@code .java} の存在（17・常に検査）と、OpenAPI エンドポイントの
- * ハードコード網羅（18・OpenAPI 指定時のみ）の発火を検証する。
+ * <p>ルール17（統合テストディレクトリ／{@code .java} の存在）は {@code directory-checker} へ移行したため、
+ * 本テストは OpenAPI エンドポイントのハードコード網羅（ルール18・OpenAPI 指定時のみ）の発火を検証する。
  */
 class IntegrationTestValidatorTest {
 
@@ -41,27 +41,18 @@ class IntegrationTestValidatorTest {
     }
 
     @Test
-    @DisplayName("ルール17: integration ディレクトリが無ければ違反")
-    void missingDirForbidden(@TempDir Path root) throws Exception {
-        List<String> v = validate(root, List.of());
-        assertTrue(has(v, "統合テストディレクトリが存在しません"), () -> v.toString());
-    }
-
-    @Test
-    @DisplayName("ルール17: ディレクトリはあるが .java が無ければ違反")
-    void emptyDirForbidden(@TempDir Path root) throws Exception {
-        Files.createDirectories(integrationDir(root));
-        List<String> v = validate(root, List.of());
-        assertTrue(has(v, ".java ファイルがありません"), () -> v.toString());
-    }
-
-    @Test
-    @DisplayName("ルール17: OpenAPI 未指定でも .java があれば違反なし")
-    void javaPresentNoOpenApiAllowed(@TempDir Path root) throws Exception {
-        writeIntegration(root, "LoginIT.java",
-                "package com.demo.integration;\nclass LoginIT {}\n");
+    @DisplayName("OpenAPI 未指定（endpoints 空）なら検査なし")
+    void noOpenApiNoCheck(@TempDir Path root) throws Exception {
+        // ディレクトリが無くてもルール17は directory-checker の責務のため、ここでは違反を出さない。
         List<String> v = validate(root, List.of());
         assertTrue(v.isEmpty(), () -> "想定外の違反: " + v);
+    }
+
+    @Test
+    @DisplayName("ルール18: integration ディレクトリが無ければ全エンドポイント未網羅")
+    void missingDirUncovered(@TempDir Path root) throws Exception {
+        List<String> v = validate(root, List.of("/health"));
+        assertTrue(has(v, "エンドポイント /health"), () -> v.toString());
     }
 
     @Test

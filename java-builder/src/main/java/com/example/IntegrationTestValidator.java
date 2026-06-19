@@ -8,16 +8,16 @@ import java.util.List;
 import java.util.stream.Stream;
 
 /**
- * 統合テストの構成と、IF仕様書（OpenAPI）エンドポイントの網羅を検証する（テスト構成ルール 17・18）。
+ * IF仕様書（OpenAPI）エンドポイントの統合テスト網羅を検証する（テスト構成ルール18）。
  *
- * <p>各プロジェクトは {@code src/test/java/com/<projectName>/integration/} に統合テストを持つこと。
- * <ul>
- *   <li>（17）{@code integration/} ディレクトリが存在し、{@code .java} ファイルが1つ以上あること。
- *       <b>常に検査</b>する（OpenAPI 未指定でも必須）。</li>
- *   <li>（18）IF仕様書（OpenAPI）が指定された場合、{@code paths} の各エンドポイント文字列
- *       （{@code /accounts/login} 等）が {@code integration/} 配下のいずれかの {@code .java} に
- *       リテラルとして現れること（ハードコード網羅）。OpenAPI 未指定時はこの網羅検査をスキップする。</li>
- * </ul>
+ * <p>{@code paths} の各エンドポイント文字列（{@code /accounts/login} 等）が、
+ * {@code <src>/test/java/com/<projectName>/integration/} 配下のいずれかの {@code .java} に
+ * リテラルとして現れること（ハードコード網羅）を検査する。OpenAPI 未指定（{@code endpointPaths} が空）時は
+ * 何も検査しない。
+ *
+ * <p><b>役割分担</b>: 統合テストディレクトリの<b>存在</b>と {@code .java} の<b>有無</b>（旧ルール17の構造検証）は
+ * {@code directory-checker} に移行済み。本クラスは OpenAPI を要するルール18（エンドポイント網羅）のみを担う。
+ * そのため integration ディレクトリが存在しない場合は corpus を空として扱い、各エンドポイントを「未網羅」と報告する。
  *
  * <p><b>既知の限界</b>: エンドポイントは OpenAPI の path 文字列を <em>そのまま部分一致</em>で照合する。
  * パスパラメータを含む path（例 {@code /users/{id}}）はテンプレートのまま照合するため、テスト側が
@@ -56,37 +56,28 @@ public final class IntegrationTestValidator {
     public List<String> validate() throws IOException {
         List<String> violations = new ArrayList<>();
 
-        Path integrationDir = srcRoot.resolve("test").resolve("java")
-                .resolve("com").resolve(projectName).resolve("integration");
-
-        // ルール17: ディレクトリ存在
-        if (!Files.isDirectory(integrationDir)) {
-            violations.add("統合テストディレクトリが存在しません: " + rel(integrationDir));
-            return violations;
-        }
-
-        // ルール17: .java ファイルが1つ以上
-        List<Path> javaFiles;
-        try (Stream<Path> stream = Files.walk(integrationDir)) {
-            javaFiles = stream
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".java"))
-                    .sorted()
-                    .toList();
-        }
-        if (javaFiles.isEmpty()) {
-            violations.add("統合テストディレクトリに .java ファイルがありません: " + rel(integrationDir));
-            return violations;
-        }
-
-        // ルール18: OpenAPI 指定時のみ、全エンドポイントのハードコード網羅を検査
+        // ルール18のみ。OpenAPI 未指定なら検査対象なし（ルール17の構造検証は directory-checker に移行）。
         if (endpointPaths.isEmpty()) {
             return violations;
         }
 
+        Path integrationDir = srcRoot.resolve("test").resolve("java")
+                .resolve("com").resolve(projectName).resolve("integration");
+
+        // integration 配下の全 .java を corpus 化（ディレクトリが無ければ空 corpus = 全エンドポイント未網羅）。
         StringBuilder corpus = new StringBuilder();
-        for (Path file : javaFiles) {
-            corpus.append(Files.readString(file)).append('\n');
+        if (Files.isDirectory(integrationDir)) {
+            List<Path> javaFiles;
+            try (Stream<Path> stream = Files.walk(integrationDir)) {
+                javaFiles = stream
+                        .filter(Files::isRegularFile)
+                        .filter(p -> p.getFileName().toString().endsWith(".java"))
+                        .sorted()
+                        .toList();
+            }
+            for (Path file : javaFiles) {
+                corpus.append(Files.readString(file)).append('\n');
+            }
         }
         String text = corpus.toString();
 

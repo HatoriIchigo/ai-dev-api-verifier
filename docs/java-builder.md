@@ -1,11 +1,16 @@
 # java-builder
 
-Java のコード構成・ディレクトリ構成を **AST（抽象構文木）解析**し、あらかじめ定義された構成ルール
-どおりかを厳密に検証するツールです。AI 駆動開発でコードの一貫性を保つ「ガードレール」として機能します。
+Java の**コード内容**を **AST（抽象構文木）解析**し、あらかじめ定義されたコードルールどおりかを
+厳密に検証するツールです。AI 駆動開発でコードの一貫性を保つ「ガードレール」として機能します。
 
 [`layered-checker`](layered-checker.md) が設計 JSON を構造レベルで検証するのに対し、`java-builder` は
 生成済みの **Java ソースそのもの**を AST で検証します（文字列ハードコード・if/for 禁止・サイズ制限など、
 JSON からは判定できないルールを含む）。
+
+> **ディレクトリ／ファイル構成の検証は [`directory-checker`](directory-checker.md) に移行済み**です
+> （旧 `DirectoryValidator`・`AppStructureValidator` が行っていた階層・配置・命名・連番・ファイル種別の検証、
+> および統合テストディレクトリ存在＝ルール17の構造部分）。`java-builder` は**コード内容（AST）検査に専念**し、
+> 構成検証は持ちません（二重化しない）。両者を順に実行することで構成＋内容を担保します。
 
 ## 構成ルール本体
 
@@ -27,7 +32,7 @@ JSON からは判定できないルールを含む）。
 - **ユニットテスト**: `src/test/java`（JUnit 5）。`mvn test` / `mvn package` で実行され、コードルール
   （`CodeRuleValidatorTest`: 1.2 乱数・ID 生成禁止 / 1.3 constants 定数定義制約 / 1.5 ワイルドカード import 禁止 / 4.1 DTO Lombok /
   5.1 null 制限 など、`LocalhostValidatorTest`: 1.4 localhost 禁止＋`src` 以外のソースルートでの検出、
-  `IntegrationTestValidatorTest`: 17/18 統合テスト構成・エンドポイント網羅、`BuildConfigTest`:
+  `IntegrationTestValidatorTest`: ルール18 エンドポイント網羅、`BuildConfigTest`:
   ソースルートの設定解決〔application.yaml／既定フォールバック〕）の発火を検証する。
   各テストは検証対象の `.java` を一時ディレクトリに1ファイル書き出し、対象ルール固有のメッセージで照合する
   （1テスト＝1つの失敗要因）。
@@ -52,13 +57,13 @@ JSON からは判定できないルールを含む）。
 
 - `Main` — エントリポイント。引数解釈と終了コード制御。`BuildConfig` でソースルートを解決して各 Validator へ渡す。
 - `BuildConfig` — ソースルート（従来固定の `src`）を環境変数／application.yaml から解決する（既定 `src`）。
-- `DirectoryValidator` — プロジェクトルート〜`app/` の階層構成を検証し、各 `app/` に対し下記を実行。
-- `AppStructureValidator` — `app/` 配下の `.java` 配置・`layer` 連番・`dto/in`・`dto/out` 数を検証。
+- `DirectoryValidator` — `<src>/main/java/com/<projectName>/app` を走査し、各 `app/` に対しコード内容検査を
+  オーケストレーションする（構成の正否は検証せず、不正構成は静かにスキップ。構成検証は `directory-checker`）。
 - `CodeRuleValidator` — JavaParser の AST でコード内容ルール（1〜10、DTO の Lombok 必須=4.1 を含む）・レイヤー依存・外部連携を検証。
 - `OpenApiValidator` — IF 仕様書（OpenAPI）の `x-internal` 宣言と `internal/`・`top/` 配置のゾーン整合を検証（IF 仕様書指定時のみ）。`paths` のエンドポイント一覧抽出（ルール18 用）も担う。
 - `ProhibitedWordValidator` — `src/main/java` 全体に使用禁止語が含まれないか検証。
 - `LocalhostValidator` — `src/main/java`・`src/test/java` 全体に `localhost` のハードコードが無いか検証（ルール1.4）。
-- `IntegrationTestValidator` — `src/test/java/com/<projectName>/integration/` の存在・`.java` 有無（ルール17）と、OpenAPI エンドポイントのハードコード網羅（ルール18）を検証。
+- `IntegrationTestValidator` — OpenAPI エンドポイントのハードコード網羅（ルール18）を検証（OpenAPI 指定時のみ。ルール17の構造検証は `directory-checker` に移行）。
 
 ## ルール実装の補足（[code-rule.md](code-rule.md) の検出詳細）
 

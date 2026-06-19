@@ -29,13 +29,13 @@ public class Main {
         }
 
         if (!violations.isEmpty()) {
-            System.err.println("ディレクトリ構成エラー (" + root + "):");
+            System.err.println("コード内容チェックエラー (" + root + "):");
             for (String violation : violations) {
                 System.err.println("  - " + violation);
             }
             System.exit(1);
         }
 
-        System.out.println("ディレクトリ構成チェック: OK");
+        System.out.println("コード内容チェック: OK");
     }
 }

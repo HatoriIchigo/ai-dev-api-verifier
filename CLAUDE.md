@@ -10,12 +10,14 @@
 |--------|------|------|
 | `ifspec-verifier/` | OpenAPI 仕様書を redocly + 独自規約で検証 | [docs/ifspec-verifier.md](docs/ifspec-verifier.md) |
 | `layered-checker/` | 設計 JSON を構成ルール・レイヤールールで検証 | [docs/layered-checker.md](docs/layered-checker.md) |
-| `java-builder/` | Java ソースを AST 解析して構成・規約を検証 | [docs/java-builder.md](docs/java-builder.md) ／ [java-builder/CLAUDE.md](java-builder/CLAUDE.md) |
+| `directory-checker/` | 実ファイルツリーのディレクトリ／ファイル構成を検証（verify.sh / bash） | [docs/directory-checker.md](docs/directory-checker.md) ／ [directory-checker/CLAUDE.md](directory-checker/CLAUDE.md) |
+| `java-builder/` | Java ソースを AST 解析してコード内容規約を検証 | [docs/java-builder.md](docs/java-builder.md) ／ [java-builder/CLAUDE.md](java-builder/CLAUDE.md) |
 | `stack-selector/` | 技術スタック決定 JSON のキー構造を検証 | [docs/stack-selector.md](docs/stack-selector.md) ／ [stack-selector/CLAUDE.md](stack-selector/CLAUDE.md) |
 
-`layered-checker` と `java-builder` が検証するレイヤー・repository などの**構成ルール本体は
-[docs/code-rule.md](docs/code-rule.md) に一元管理**する（両ツール共通の正本）。ルールの追加・変更は
-まず `docs/code-rule.md` に反映し、各ツールの実装・テストを揃える。
+`layered-checker`・`directory-checker`・`java-builder` が検証するレイヤー・repository などの**構成ルール
+本体は [docs/code-rule.md](docs/code-rule.md) に一元管理**する（共通の正本）。ルールの追加・変更は
+まず `docs/code-rule.md` に反映し、各ツールの実装・テストを揃える。**ディレクトリ／ファイル構成検証の正本は
+`directory-checker`、コード内容（AST）検証は `java-builder`** という役割分担とする（二重化しない）。
 
 - 特定のツールに手を入れる前に、まず該当ツールの詳細ドキュメントを読むこと。
 - ツール固有の設計判断・コマンド・テスト方針は各 docs に記載する。**本ファイルへ固有情報を増やさない**

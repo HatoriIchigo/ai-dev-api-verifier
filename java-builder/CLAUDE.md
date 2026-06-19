@@ -12,20 +12,15 @@ AIがコードを生成・変更していく開発スタイルでは、コード
 
 ## 役割
 
-本ツールの役割は主に2つです。
-
-### 1. ディレクトリ構成管理
-
-- Javaプロジェクトのディレクトリ構成（パッケージ構成）を解析する。
-- あらかじめ定義された構成ルール（レイヤー構成・命名規約・配置ルールなど）と
-  実際のディレクトリ／ファイル配置を突き合わせて検証する。
-- 規約から逸脱したファイル・パッケージの配置を検出し、報告する。
-
-### 2. コードチェック
+本ツールの役割は **Java ソースのコードチェック（AST 解析）** です。
 
 - JavaソースコードをAST（抽象構文木）として解析する。
 - クラス・メソッド・依存関係などが仕様・コーディング規約に沿っているかをチェックする。
 - 違反箇所を検出し、どのルールにどう違反しているかを報告する。
+
+> **ディレクトリ／ファイル構成の検証は [`directory-checker`](../directory-checker/CLAUDE.md) に移行済み**
+> （階層・配置・命名・連番・ファイル種別、および統合テストディレクトリ存在＝ルール17の構造部分）。
+> `java-builder` は構成検証を持たず、コード内容（AST）検査に専念する（二重化しない）。
 
 ## 検証仕様（構成ルール）
 
@@ -45,13 +40,13 @@ AIがコードを生成・変更していく開発スタイルでは、コード
 
 - `Main` — エントリポイント。引数解釈（第1: 対象プロジェクトルート／第2: IF仕様書パス・任意）と終了コード制御。`BuildConfig` でソースルートを解決し各 Validator へ渡す。
 - `BuildConfig` — ソースルート（従来固定の `src`）を環境変数 `JAVA_BUILDER_SRC_ROOT`／application.yaml の `src-root` から解決する（既定 `src`。詳細は [docs/java-builder.md](../docs/java-builder.md)）。
-- `DirectoryValidator` — プロジェクトルート〜`app/` の階層構成を検証し、各 `app/` に対して下記クラスを実行。
-- `AppStructureValidator` — `app/` 配下の `.java` 配置・`layer` 連番・`dto/in`・`dto/out` 数を検証。
+- `DirectoryValidator` — `<src>/main/java/com/<projectName>/app` を走査し、各 `app/` に対し下記の内容検査を
+  オーケストレーションする（構成の正否は検証せず、不正構成は静かにスキップ。構成検証は `directory-checker`）。
 - `CodeRuleValidator` — JavaParser の AST を用いてコード内容ルール（内容ルール1〜10、DTO の Lombok 必須=4.1 を含む・レイヤー依存・外部連携）を検証。
 - `OpenApiValidator` — IF仕様書（OpenAPI）の `x-internal` 宣言と `internal/`・`top/` 配置のゾーン整合を検証（IF仕様書指定時のみ）。`paths` のエンドポイント一覧抽出（ルール18）も担う。
 - `ProhibitedWordValidator` — `src/main/java` 全体に使用禁止語（dummy/mock/fake 等）が含まれないか検証。
 - `LocalhostValidator` — `src/main/java`・`src/test/java` 全体に `localhost` のハードコードが無いか検証（ルール1.4）。
-- `IntegrationTestValidator` — `src/test/java/com/<projectName>/integration/` の存在・`.java` 有無（ルール17）と、OpenAPI エンドポイントのハードコード網羅（ルール18）を検証。
+- `IntegrationTestValidator` — OpenAPI エンドポイントのハードコード網羅（ルール18）を検証（OpenAPI 指定時のみ。ルール17の構造検証は `directory-checker` に移行）。
 
 ## 技術構成
 
@@ -84,8 +79,7 @@ java-builder/
         │   └── com/example/
         │       ├── Main.java                  # エントリポイント
         │       ├── BuildConfig.java           # ソースルート(src)を環境変数/application.yamlから解決
-        │       ├── DirectoryValidator.java    # ルート〜app/ の階層構成検証
-        │       ├── AppStructureValidator.java # app/配下の配置・layer連番・dto数検証
+        │       ├── DirectoryValidator.java    # app/ 走査・コード内容検査のオーケストレーション
         │       ├── CodeRuleValidator.java     # AST（JavaParser）によるコード内容検証
         │       ├── OpenApiValidator.java      # IF仕様書(OpenAPI)とのゾーン整合検証・エンドポイント抽出
         │       ├── ProhibitedWordValidator.java # src/main/java 全体の使用禁止語検査

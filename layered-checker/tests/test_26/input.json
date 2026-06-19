@@ -9,7 +9,7 @@
       "method": "POST",
       "description": "ログインID・パスワード:認証情報を検証しトークンを発行:アクセストークン",
       "imports": [
-        "layer2/Nope"
+        "layer2/AccountService"
       ]
     },
     {
@@ -39,7 +39,7 @@
         "name": "AccountStore",
         "description": "アカウントID:repository 経由でアカウントを取得:アカウントエンティティ",
         "imports": [
-          "repository/AccountRepository"
+          "repository/Account"
         ]
       }
     ],
@@ -66,7 +66,7 @@
   },
   "repository": [
     {
-      "name": "AccountRepository",
+      "name": "Account",
       "description": "アカウント検索条件:アカウントDBへ問い合わせ:アカウントレコード",
       "external": {
         "db": {

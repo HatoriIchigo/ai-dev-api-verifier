@@ -242,7 +242,9 @@ verify_structure() {
 #   - projectName 形式（^[0-9A-Za-z_-]+$）           [directory-structure]
 #   - layer 連番（1始まり・歯抜けなし）              [directory-structure]
 #   - dto.in と dto.out の件数一致                    [directory-structure]
-#   - repository/Foo ↔ dto/in/Foo・dto/out/Foo 対応  [code-rule 4]
+#   - 命名サフィックス(Repository/InDto/OutDto)        [code-rule D5]
+#   - repository/<Stem>Repository ↔
+#       dto/in/<Stem>InDto・dto/out/<Stem>OutDto 対応  [code-rule 4]
 #   - import 宛先の実在（dangling 参照検出）          [整合性]
 #   - layer1 は repository を import 必須             [code-rule 3]
 #   - layer<N>(N≥2) は下位レイヤーを import 必須      [code-rule 7]
@@ -314,13 +316,27 @@ verify_rules() {
         ( select( (($root.dto.in // [])|length) != (($root.dto.out // [])|length) )
           | "dto.in と dto.out の件数が一致しません: in=\(($root.dto.in//[])|length) out=\(($root.dto.out//[])|length)" ),
 
-        # repository ↔ dto 対応（code-rule 4）
+        # 命名サフィックス（code-rule D5）
         ( ($root.repository // [])[] | .name as $rn
-          | select( (($root.dto.in // [])|any(.==$rn)) | not )
-          | "repository \"\($rn)\" に対応する dto/in/\($rn) がありません [code-rule 4]" ),
+          | select( ($rn | endswith("Repository") and (length > 10)) | not )
+          | "repository \"\($rn)\" は命名サフィックス \"Repository\" で終わる必要があります [code-rule D5]" ),
+        ( ($root.dto.in // [])[] as $dn
+          | select( ($dn | endswith("InDto") and (length > 5)) | not )
+          | "dto/in \"\($dn)\" は命名サフィックス \"InDto\" で終わる必要があります [code-rule D5]" ),
+        ( ($root.dto.out // [])[] as $dn
+          | select( ($dn | endswith("OutDto") and (length > 6)) | not )
+          | "dto/out \"\($dn)\" は命名サフィックス \"OutDto\" で終わる必要があります [code-rule D5]" ),
+
+        # repository ↔ dto 対応（ステム一致, code-rule 4）
+        # ステム = repository 名から末尾 "Repository" を除いた部分。<ステム>InDto / <ステム>OutDto が存在すること。
         ( ($root.repository // [])[] | .name as $rn
-          | select( (($root.dto.out // [])|any(.==$rn)) | not )
-          | "repository \"\($rn)\" に対応する dto/out/\($rn) がありません [code-rule 4]" ),
+          | ($rn | rtrimstr("Repository")) as $stem
+          | select( (($root.dto.in // [])|any(.== ($stem + "InDto"))) | not )
+          | "repository \"\($rn)\" に対応する dto/in/\($stem + "InDto") がありません [code-rule 4]" ),
+        ( ($root.repository // [])[] | .name as $rn
+          | ($rn | rtrimstr("Repository")) as $stem
+          | select( (($root.dto.out // [])|any(.== ($stem + "OutDto"))) | not )
+          | "repository \"\($rn)\" に対応する dto/out/\($stem + "OutDto") がありません [code-rule 4]" ),
 
         # repository.imports は dto/in・dto/out をそれぞれ1件ずつ含む（code-rule 4）
         ( ($root.repository // []) | to_entries[] | .key as $i | .value as $r
@@ -331,6 +347,18 @@ verify_rules() {
           | ([ ($r.imports // [])[] | select(test("^dto/out/")) ] | length) as $nout
           | select($nout != 1)
           | "repository[\($i)] (\($r.name)) の imports に dto/out が \($nout) 件あります（ちょうど1件である必要）[code-rule 4]" ),
+
+        # repository.imports の dto/in・dto/out は対応ステム名と一致（code-rule 4）
+        ( ($root.repository // []) | to_entries[] | .key as $i | .value as $r
+          | ($r.name | rtrimstr("Repository")) as $stem
+          | [ ($r.imports // [])[] | select(test("^dto/in/")) ] as $ins
+          | select( ($ins | length) == 1 and ($ins[0] != ("dto/in/" + $stem + "InDto")) )
+          | "repository[\($i)] (\($r.name)) の dto/in import が対応ステムと一致しません: \($ins[0])（期待: dto/in/\($stem + "InDto")）[code-rule 4]" ),
+        ( ($root.repository // []) | to_entries[] | .key as $i | .value as $r
+          | ($r.name | rtrimstr("Repository")) as $stem
+          | [ ($r.imports // [])[] | select(test("^dto/out/")) ] as $outs
+          | select( ($outs | length) == 1 and ($outs[0] != ("dto/out/" + $stem + "OutDto")) )
+          | "repository[\($i)] (\($r.name)) の dto/out import が対応ステムと一致しません: \($outs[0])（期待: dto/out/\($stem + "OutDto")）[code-rule 4]" ),
 
         # import 宛先の実在（dangling 参照）
         ( ($root.top // []) | to_entries[] | .key as $i | (.value.imports // [])[] as $ref

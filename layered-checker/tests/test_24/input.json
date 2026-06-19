@@ -39,7 +39,7 @@
         "name": "AccountStore",
         "description": "アカウントID:repository 経由でアカウントを取得:アカウントエンティティ",
         "imports": [
-          "repository/Account"
+          "repository/AccountRepository"
         ],
         "external": "cognito"
       }
@@ -67,7 +67,7 @@
   },
   "repository": [
     {
-      "name": "Account",
+      "name": "AccountRepository",
       "description": "アカウント検索条件:アカウントDBへ問い合わせ:アカウントレコード",
       "external": {
         "db": {
@@ -75,17 +75,17 @@
         }
       },
       "imports": [
-        "dto/in/Account",
-        "dto/out/Account"
+        "dto/in/AccountInDto",
+        "dto/out/AccountOutDto"
       ]
     }
   ],
   "dto": {
     "in": [
-      "Account"
+      "AccountInDto"
     ],
     "out": [
-      "Account"
+      "AccountOutDto"
     ]
   }
 }

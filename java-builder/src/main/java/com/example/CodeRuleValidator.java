@@ -113,6 +113,11 @@ public final class CodeRuleValidator {
     private static final int MAX_FILE_LINES = 500;
     private static final int MAX_METHOD_LINES = 100;
 
+    /** ルールD5/4: ゾーン別の命名サフィックス。ステム一致のペアリングにも用いる。 */
+    private static final String REPOSITORY_SUFFIX = "Repository";
+    private static final String DTO_IN_SUFFIX = "InDto";
+    private static final String DTO_OUT_SUFFIX = "OutDto";
+
     /**
      * DTO（{@code dto/**}）クラスに必須とする Lombok アノテーション（単純名）。
      * getter/setter・コンストラクタ等のボイラープレートは手書きせず Lombok に委ねる方針で、
@@ -1016,7 +1021,11 @@ public final class CodeRuleValidator {
         return false;
     }
 
-    /** ルール4: 各 repository に対応する dto/in・dto/out（同名）が存在するか検証する。 */
+    /**
+     * ルール4: 各 repository に対応する dto/in・dto/out が存在するか検証する。
+     * 対応はステム一致（repository 名から {@code Repository} を除いたステムに対し、
+     * {@code <ステム>InDto} / {@code <ステム>OutDto} が存在すること）。
+     */
     private List<String> validateRepositoryDtoPairs(List<Path> javaFiles) {
         Set<String> repositories = new TreeSet<>();
         Set<String> dtoIn = new HashSet<>();
@@ -1034,14 +1043,26 @@ public final class CodeRuleValidator {
 
         List<String> violations = new ArrayList<>();
         for (String base : repositories) {
-            if (!dtoIn.contains(base)) {
-                violations.add("repository/" + base + ".java に対応する dto/in/" + base + ".java がありません");
+            String stem = repositoryStem(base);
+            String expectedIn = stem + DTO_IN_SUFFIX;
+            String expectedOut = stem + DTO_OUT_SUFFIX;
+            if (!dtoIn.contains(expectedIn)) {
+                violations.add("repository/" + base + ".java に対応する dto/in/" + expectedIn + ".java がありません");
             }
-            if (!dtoOut.contains(base)) {
-                violations.add("repository/" + base + ".java に対応する dto/out/" + base + ".java がありません");
+            if (!dtoOut.contains(expectedOut)) {
+                violations.add("repository/" + base + ".java に対応する dto/out/" + expectedOut + ".java がありません");
             }
         }
         return violations;
+    }
+
+    /** repository 名（ベース名）からステムを取り出す（末尾の {@code Repository} を除去。無ければそのまま）。 */
+    private String repositoryStem(String repositoryBase) {
+        if (repositoryBase.endsWith(REPOSITORY_SUFFIX)
+                && repositoryBase.length() > REPOSITORY_SUFFIX.length()) {
+            return repositoryBase.substring(0, repositoryBase.length() - REPOSITORY_SUFFIX.length());
+        }
+        return repositoryBase;
     }
 
     /**
@@ -1071,7 +1092,7 @@ public final class CodeRuleValidator {
     }
 
     private List<String> validateRepositoryDtoImports(Path file, CompilationUnit cu) {
-        String base = baseName(file);
+        String stem = repositoryStem(baseName(file));
         String dtoInPkg = basePackage + ".dto.in";
         String dtoOutPkg = basePackage + ".dto.out";
 
@@ -1094,22 +1115,25 @@ public final class CodeRuleValidator {
         }
 
         List<String> violations = new ArrayList<>();
-        violations.addAll(checkRepositoryDtoSide(file, base, "dto/in", inImports, inWildcard));
-        violations.addAll(checkRepositoryDtoSide(file, base, "dto/out", outImports, outWildcard));
+        violations.addAll(checkRepositoryDtoSide(file, stem + DTO_IN_SUFFIX, "dto/in", inImports, inWildcard));
+        violations.addAll(checkRepositoryDtoSide(file, stem + DTO_OUT_SUFFIX, "dto/out", outImports, outWildcard));
         return violations;
     }
 
-    /** ルール4（imports）: 片側（dto/in もしくは dto/out）について、対応ベース名をちょうど1件 import するか検証する。 */
-    private List<String> checkRepositoryDtoSide(Path file, String base, String side,
+    /**
+     * ルール4（imports）: 片側（dto/in もしくは dto/out）について、対応する DTO 名（ステム＋サフィックス）を
+     * ちょうど1件 import するか検証する。
+     */
+    private List<String> checkRepositoryDtoSide(Path file, String expected, String side,
                                                 List<String> imports, boolean wildcard) {
         if (wildcard) {
             return List.of();
         }
         List<String> violations = new ArrayList<>();
-        if (!imports.contains(base)) {
-            violations.add(rel(file) + " repository は対応する " + side + "/" + base
+        if (!imports.contains(expected)) {
+            violations.add(rel(file) + " repository は対応する " + side + "/" + expected
                     + " を import する必要があります（" + basePackage + "." + side.replace('/', '.')
-                    + "." + base + " が見つかりません）");
+                    + "." + expected + " が見つかりません）");
         }
         if (imports.size() > 1) {
             violations.add(rel(file) + " repository の " + side + " import は1件のみ許可されます（検出: "

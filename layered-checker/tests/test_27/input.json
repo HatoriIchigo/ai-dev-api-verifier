@@ -9,7 +9,7 @@
       "method": "POST",
       "description": "ログインID・パスワード:認証情報を検証しトークンを発行:アクセストークン",
       "imports": [
-        "layer2/Nope"
+        "layer2/AccountService"
       ]
     },
     {
@@ -81,10 +81,12 @@
   ],
   "dto": {
     "in": [
-      "AccountInDto"
+      "AccountInDto",
+      "ExtraIn"
     ],
     "out": [
-      "AccountOutDto"
+      "AccountOutDto",
+      "ExtraOutDto"
     ]
   }
 }

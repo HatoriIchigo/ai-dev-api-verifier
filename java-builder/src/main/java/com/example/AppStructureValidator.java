@@ -45,6 +45,7 @@ public final class AppStructureValidator {
 
     private static final String DTO_IN = "dto/in";
     private static final String DTO_OUT = "dto/out";
+    private static final String REPOSITORY = "repository";
 
     private final Path appDir;
 
@@ -78,8 +79,12 @@ public final class AppStructureValidator {
                 }
             } else if (DTO_IN.equals(parentDir)) {
                 inCount++;
+                violations.addAll(checkSuffix(parentDir, fileName, "InDto"));
             } else if (DTO_OUT.equals(parentDir)) {
                 outCount++;
+                violations.addAll(checkSuffix(parentDir, fileName, "OutDto"));
+            } else if (REPOSITORY.equals(parentDir)) {
+                violations.addAll(checkSuffix(parentDir, fileName, "Repository"));
             } else if (!isAllowedDir(parentDir)) {
                 violations.add("許可されない場所のJavaファイル: " + parentDir + "/" + fileName);
             }
@@ -129,5 +134,19 @@ public final class AppStructureValidator {
 
     private static boolean isAllowedDir(String parentDir) {
         return ALLOWED_LEAF_DIRS.contains(parentDir) || LAYER_DIR.matcher(parentDir).matches();
+    }
+
+    /**
+     * ルールD5: ゾーン別の命名サフィックスを検証する。
+     * クラス名（ファイルのベース名）が指定サフィックスで終わらなければエラー。
+     * repository とその in/out DTO の単純名衝突（Java の single-type import 衝突）を防ぐための一意化。
+     */
+    private static List<String> checkSuffix(String parentDir, String fileName, String suffix) {
+        String base = fileName.substring(0, fileName.length() - ".java".length());
+        if (base.endsWith(suffix) && base.length() > suffix.length()) {
+            return List.of();
+        }
+        return List.of(parentDir + "/" + fileName + " は命名サフィックス \"" + suffix
+                + "\" で終わる必要があります（例: <ステム>" + suffix + ".java）");
     }
 }

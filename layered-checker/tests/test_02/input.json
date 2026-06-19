@@ -42,7 +42,7 @@
         "name": "AccountStore",
         "description": "アカウントID:repository 経由でアカウントを取得:アカウントエンティティ",
         "imports": [
-          "repository/Account"
+          "repository/AccountRepository"
         ]
       }
     ],
@@ -69,7 +69,7 @@
   },
   "repository": [
     {
-      "name": "Account",
+      "name": "AccountRepository",
       "description": [
         "検索条件:アカウントDBへ問い合わせ:レコード",
         "アカウントID:キャッシュ確認:ヒット有無"
@@ -80,17 +80,17 @@
         }
       },
       "imports": [
-        "dto/in/Account",
-        "dto/out/Account"
+        "dto/in/AccountInDto",
+        "dto/out/AccountOutDto"
       ]
     }
   ],
   "dto": {
     "in": [
-      "Account"
+      "AccountInDto"
     ],
     "out": [
-      "Account"
+      "AccountOutDto"
     ]
   }
 }

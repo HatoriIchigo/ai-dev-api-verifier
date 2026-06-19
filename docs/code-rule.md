@@ -44,9 +44,9 @@ src/main/java/com/<projectName>/app/
 | `top/*.java` | 最上位層（外部接続ありエンドポイントのエントリ） |
 | `internal/*.java` | backend 完結エンドポイントのエントリ（外部接続なし。repository/外部連携への到達禁止） |
 | `layer<数値>/*.java` | サービス層（`^layer[0-9]+$`、複数可。1始まりの連番であること） |
-| `repository/*.java` | 外部ツールとの連携 |
-| `dto/in/*.java` | in 側の DTO |
-| `dto/out/*.java` | out 側の DTO |
+| `repository/*.java` | 外部ツールとの連携（クラス名は `*Repository` で終わること） |
+| `dto/in/*.java` | in 側の DTO（クラス名は `*InDto` で終わること） |
+| `dto/out/*.java` | out 側の DTO（クラス名は `*OutDto` で終わること） |
 | `log/*.java` | ログ関連 |
 | `util/*.java` | util ツール |
 | `validation/*.java` | バリデーション関連 |
@@ -55,6 +55,15 @@ src/main/java/com/<projectName>/app/
 - D2. 上記以外の場所に `.java` ファイルがあればエラー。
 - D3. `dto/in` と `dto/out` の `.java` ファイル数が一致しなければエラー。【構造判定可】
 - D4. `layer<数値>` は1始まりの連番であること。歯抜け（例: layer1〜4, layer6〜7 で layer5 が欠番）はエラー。【構造判定可】
+- D5. **命名サフィックス**: `repository/*.java` は `*Repository`、`dto/in/*.java` は `*InDto`、
+  `dto/out/*.java` は `*OutDto` で終わること（クラス名＝ファイルのベース名）。サフィックスを欠く
+  ファイルがあればエラー。【構造判定可】
+  - 目的: repository とその in/out DTO は**同名（ベース名一致）だと Java の single-type import が衝突**する
+    （`import ...dto.in.Account;` と `import ...dto.out.Account;` は単純名 `Account` が重複し、さらに
+    `repository/Account.java` の自クラス名とも衝突してコンパイル不能）。ゾーン別サフィックスで単純名を
+    一意化し、ルール4（repository は in/out DTO を明示 import 必須）と両立させる。
+  - 共通の**ステム**（サフィックスを除いた部分。例: `AccountRepository` / `AccountInDto` /
+    `AccountOutDto` のステムは `Account`）で repository ↔ DTO を対応付ける（ルール4を参照）。
 
 ---
 
@@ -121,12 +130,16 @@ src/main/java/com/<projectName>/app/
    （`if` / `for` / 拡張 `for` / `while` / `do-while` / `switch` 文・式 / 三項演算子）を禁止。
 3. **layer1 は repository 利用必須**: `layer1/` の各クラスは repository パッケージ
    （`com.<projectName>.app.repository`）を import していること。【構造判定可】
-4. **repository と DTO の対応**: `repository/Foo.java` には同名の `dto/in/Foo.java` と
-   `dto/out/Foo.java`（ベース名完全一致）が対応して存在すること。さらに **`repository/Foo.java` の imports は
-   対応する `dto/in/Foo` と `dto/out/Foo` をそれぞれ「ちょうど1件」含む**こと（ファイル存在だけでなく実利用を
-   import で担保する）。dto/in もしくは dto/out の import が無い／対応ベース名でない／2件以上ある場合はエラー。
-   ワイルドカード import（`import <base>.dto.in.*;`）はベース名・件数を特定できないため本検査ではその側を
-   スキップするが、ワイルドカード import 自体がルール1.5で禁止されるため、結果として明示 import が強制される。【構造判定可】
+4. **repository と DTO の対応（ステム一致）**: `repository/<Stem>Repository.java` には、同じステムを持つ
+   `dto/in/<Stem>InDto.java` と `dto/out/<Stem>OutDto.java` が対応して存在すること（ステムは repository 名から
+   サフィックス `Repository` を除いた部分。例: `AccountRepository` ↔ `AccountInDto` / `AccountOutDto`）。
+   さらに **`repository/<Stem>Repository.java` の imports は対応する `dto/in/<Stem>InDto` と `dto/out/<Stem>OutDto` を
+   それぞれ「ちょうど1件」含む**こと（ファイル存在だけでなく実利用を import で担保する）。dto/in もしくは dto/out の
+   import が無い／対応ステムでない／2件以上ある場合はエラー。ワイルドカード import（`import <base>.dto.in.*;`）は
+   ベース名・件数を特定できないため本検査ではその側をスキップするが、ワイルドカード import 自体がルール1.5で
+   禁止されるため、結果として明示 import が強制される。【構造判定可】
+   - サフィックスによる単純名の一意化（D5）が前提。ステムが同じでもゾーン別サフィックスにより
+     `AccountInDto` / `AccountOutDto` は単純名が異なるため、両方を single-type import しても衝突しない。
 4.1. **DTO は Lombok 必須**: `dto/**` の各クラスは Lombok アノテーション（`@Data` / `@Value` /
    `@Getter` / `@Setter` / `@Builder` / `@*ArgsConstructor` / `@EqualsAndHashCode` / `@ToString` /
    `@With` / `@Accessors` のいずれか）を**少なくとも1つ**付与し、かつファイルが `lombok` パッケージを

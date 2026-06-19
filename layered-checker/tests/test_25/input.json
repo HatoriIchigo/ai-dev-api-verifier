@@ -39,7 +39,7 @@
         "name": "AccountStore",
         "description": "アカウントID:repository 経由でアカウントを取得:アカウントエンティティ",
         "imports": [
-          "repository/Account"
+          "repository/AccountRepository"
         ]
       }
     ],
@@ -62,14 +62,14 @@
         "name": "HealthChecker",
         "description": "なし:アプリ稼働状態を判定する:稼働可否",
         "imports": [
-          "repository/Account"
+          "repository/AccountRepository"
         ]
       }
     ]
   },
   "repository": [
     {
-      "name": "Account",
+      "name": "AccountRepository",
       "description": "アカウント検索条件:アカウントDBへ問い合わせ:アカウントレコード",
       "external": {
         "db": {
@@ -77,17 +77,17 @@
         }
       },
       "imports": [
-        "dto/in/Account",
-        "dto/out/Account"
+        "dto/in/AccountInDto",
+        "dto/out/AccountOutDto"
       ]
     }
   ],
   "dto": {
     "in": [
-      "Account"
+      "AccountInDto"
     ],
     "out": [
-      "Account"
+      "AccountOutDto"
     ]
   }
 }

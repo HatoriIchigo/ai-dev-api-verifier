@@ -11,10 +11,22 @@
 - bash
 - jq
 
-## 入力スキーマ（キーのみ。値の型・内容は検証対象外）
+## kind ディスパッチ（プロジェクト種別）
+
+トップレベル `kind` で適用スキーマを分岐する。`kind` キーは**必須**（有無のみ検証・値自体は検証しない）。
+
+- `kind` が無い → エラー（必須キー不足）
+- `kind == "backend"` → backend 用スキーマで検証（下記）＋構成妥当性チェック
+- それ以外（`frontend` / `iac` / 未知の値）→ **未対応として検証をスキップ（pass）**
+
+> 将来 `frontend` / `iac` を追加する余地として、`main` の `case "$kind"` に分岐を足し、
+> 専用の `verify_keys_<kind>` を実装するだけで対応できる構造にしてある。
+
+## 入力スキーマ（kind=backend。キーのみ。値の型・内容は検証対象外）
 
 ```json
 {
+  "kind": "backend",
   "language": { "kind": "...", "version": "..." },
   "package":  "...",
   "build":    "...",
@@ -22,7 +34,7 @@
 }
 ```
 
-- トップレベル必須キー: `language` / `package` / `build` / `libraries`
+- トップレベル必須キー: `kind` / `language` / `package` / `build` / `libraries`
 - `language` 必須キー: `kind` / `version`
 - `libraries` は配列。各要素は `name` / `version` を持つオブジェクト（空配列は許可）
 - 上記以外のキー（未知キー）が現れた場合もエラー

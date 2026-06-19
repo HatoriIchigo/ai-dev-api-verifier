@@ -1,4 +1,5 @@
 {
+  "kind": "backend",
   "language": "java21",
   "package": "maven",
   "build": "maven",

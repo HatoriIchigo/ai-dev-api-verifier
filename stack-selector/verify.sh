@@ -6,8 +6,13 @@
 # 値の内容（言語の種別・バージョン書式など）は問わず、**キーがそろっているか**だけを検証する。
 # jq が未インストールの場合は自動でインストールを試みる。
 #
-# 期待するスキーマ（キーのみ。値の型・内容は本検証の対象外）:
+# トップレベル kind（プロジェクト種別）で適用スキーマを分岐する。kind キーは必須（有無のみ検証・
+# 値自体は検証しない）。現状は kind=backend のみ対応し、frontend / iac など他の値は「未対応」として
+# 検証をスキップする（pass）。将来 kind を増やす場合は main のディスパッチに分岐を足す。
+#
+# 期待するスキーマ（kind=backend。キーのみ。値の型・内容は本検証の対象外）:
 #   {
+#     "kind": "backend",
 #     "language": { "kind": ..., "version": ... },
 #     "package":  ...,
 #     "build":    ...,
@@ -16,9 +21,9 @@
 #
 # キー検証は「不足キー」「未知キー」の双方をエラーとする（キー集合の完全一致）。
 #
-# さらに language.kind と package / build の組み合わせ妥当性を**助言として**確認する
-# （java->maven/gradle, python->pip, typescript->npm）。組み合わせは強制せず、非許可ツール・
-# 未知言語でもエラーにはしない（終了コードはキー検証のみが左右する）。
+# さらに（backend のみ）language.kind と package / build の組み合わせ妥当性を**助言として**確認する
+# （java->maven/gradle/ant, python->pip, typescript->npm, go->go/gomod, rust->cargo）。組み合わせは
+# 強制せず、非許可ツール・未知言語でもエラーにはしない（終了コードはキー検証のみが左右する）。
 #
 # 使い方:
 #   ./verify.sh <input.json>
@@ -104,22 +109,22 @@ verify_json() {
 }
 
 # ---------------------------------------------------------------------------
-# キー検証
-#   - トップレベル必須キー: language / package / build / libraries
+# キー検証（kind=backend 用スキーマ）
+#   - トップレベル必須キー: kind / language / package / build / libraries
 #   - language オブジェクト必須キー: kind / version
 #   - libraries は配列。各要素は name / version を持つオブジェクト
 #   - 不足キー・未知キー（キー集合の不一致）はいずれもエラー
 #   値の型・内容は検証しない（キーがそろっているかのみ）。
 # ---------------------------------------------------------------------------
-verify_keys() {
+verify_keys_backend() {
   local file="$1"
   local errors
 
   errors="$(jq -r '
     . as $root
 
-    # 期待キー集合
-    | ["language", "package", "build", "libraries"] as $topKeys
+    # 期待キー集合（backend 用スキーマ）
+    | ["kind", "language", "package", "build", "libraries"] as $topKeys
     | ["kind", "version"]    as $langKeys
     | ["name", "version"]    as $libKeys
 
@@ -254,8 +259,29 @@ main() {
 
   ensure_jq
   verify_json "$file"
-  verify_keys "$file"
-  verify_combo "$file"
+
+  # kind ディスパッチ:
+  #   トップレベル kind は必須キー（有無のみ検証。値自体は検証しない）。
+  #   kind の値で適用スキーマを分岐する。現状 backend のみ対応。
+  local has_kind kind
+  has_kind="$(jq -r 'has("kind")' "$file")"
+  if [[ "$has_kind" != "true" ]]; then
+    error "トップレベルに必須キーがありません: kind"
+    exit 1
+  fi
+  kind="$(jq -r '.kind | tostring' "$file")"
+
+  case "$kind" in
+    backend)
+      verify_keys_backend "$file"
+      verify_combo "$file"
+      ;;
+    # 将来 frontend / iac を追加する場合はここに分岐を足す（専用の verify_keys_<kind> を実装）。
+    # 例: frontend) verify_keys_frontend "$file" ;;
+    *)
+      info "kind '$kind' は未対応のため検証をスキップします（現状 backend のみ対応・値は不問）"
+      ;;
+  esac
 
   info "検証が完了しました。"
 }

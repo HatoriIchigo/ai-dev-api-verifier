@@ -1,11 +1,10 @@
 {
-  "kind": "backend",
   "language": {
-    "kind": "rust",
+    "kind": "java",
     "version": "21"
   },
-  "package": "cargo",
-  "build": "cargo",
+  "package": "maven",
+  "build": "maven",
   "libraries": [
     {
       "name": "lombok",
